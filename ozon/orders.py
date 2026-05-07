@@ -15,14 +15,28 @@ HEADERS = [
     "Номер отправления",
     "Номер заказа",
     "Статус",
+    "Причина отмены",
     "Дата создания",
+    "Дата начала обработки",
+    "Дата отгрузки (FBS)",
     "Артикул продавца",
     "SKU Ozon",
     "Название товара",
     "Количество",
     "Цена",
+    "Старая цена",
+    "Скидка (сумма)",
+    "Скидка (%)",
     "Регион доставки",
+    "Город доставки",
     "Способ доставки",
+    "Название склада",
+    "Комиссия Ozon (сумма)",
+    "Комиссия Ozon (%)",
+    "Выплата продавцу",
+    "Стоимость фулфилмента",
+    "Стоимость доставки",
+    "Стоимость возврата",
 ]
 
 STATUS_MAP = {
@@ -34,6 +48,12 @@ STATUS_MAP = {
     "cancelled": "Отменено",
     "not_accepted": "Не принято на сортировке",
 }
+
+
+def fmt_dt(value):
+    if not value:
+        return ""
+    return value[:19].replace("T", " ")
 
 
 def fetch_orders(client_id, api_key):
@@ -65,7 +85,7 @@ def fetch_orders(client_id, api_key):
                 "offset": offset,
                 "with": {
                     "analytics_data": True,
-                    "financial_data": False,
+                    "financial_data": True,
                 },
             }
 
@@ -80,24 +100,47 @@ def fetch_orders(client_id, api_key):
 
             for posting in postings:
                 analytics = posting.get("analytics_data") or {}
+                financial = posting.get("financial_data") or {}
+                fin_products = financial.get("products") or []
+                cancellation = posting.get("cancellation") or {}
+
                 status_raw = posting.get("status", "")
                 status = STATUS_MAP.get(status_raw, status_raw)
-                created_at = posting.get("created_at", "")[:19].replace("T", " ")
+                cancel_reason = cancellation.get("cancel_reason", "")
+                shipment_date = fmt_dt(posting.get("shipment_date", "")) if schema == "fbs" else ""
 
-                for product in posting.get("products", []):
+                products = posting.get("products", [])
+                for i, product in enumerate(products):
+                    fin = fin_products[i] if i < len(fin_products) else {}
+                    services = fin.get("item_services") or {}
+
                     row = [
                         schema.upper(),
                         posting.get("posting_number", ""),
                         posting.get("order_number", ""),
                         status,
-                        created_at,
+                        cancel_reason,
+                        fmt_dt(posting.get("created_at", "")),
+                        fmt_dt(posting.get("in_process_at", "")),
+                        shipment_date,
                         product.get("offer_id", ""),
                         product.get("sku", ""),
                         product.get("name", ""),
                         product.get("quantity", 0),
                         product.get("price", ""),
+                        fin.get("old_price", ""),
+                        fin.get("total_discount_value", ""),
+                        fin.get("total_discount_percent", ""),
                         analytics.get("region", ""),
+                        analytics.get("city", ""),
                         analytics.get("delivery_type", ""),
+                        analytics.get("warehouse_name", ""),
+                        fin.get("commission_amount", ""),
+                        fin.get("commission_percent", ""),
+                        fin.get("payout", ""),
+                        services.get("marketplace_service_item_fulfillment", ""),
+                        services.get("marketplace_service_item_direct_flow_trans", ""),
+                        services.get("marketplace_service_item_return_flow_trans", ""),
                     ]
                     all_rows.append(row)
 
