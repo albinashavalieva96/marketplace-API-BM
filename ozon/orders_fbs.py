@@ -51,7 +51,7 @@ def _calc_spp(price, customer_price):
     try:
         p = float(str(price).replace(",", "."))
         cp = float(str(customer_price).replace(",", "."))
-        return round(p - cp, 2) if cp else ""
+        return round((p - cp) / p * 100, 2) if cp and p else ""
     except (ValueError, TypeError):
         return ""
 
