@@ -132,18 +132,61 @@ def fetch_fbs_orders(client_id, api_key):
     return all_rows
 
 
-def fetch_fbo_via_report(client_id, api_key):
+def _fetch_fbo_clusters(client_id, api_key):
+    """Получает кластеры отгрузки/доставки из v2 API. Возвращает {posting_number: (cluster_from, cluster_to)}"""
     headers = {
         "Client-Id": client_id,
         "Api-Key": api_key,
         "Content-Type": "application/json",
     }
-
     now = datetime.now(timezone.utc)
     date_from = (now - timedelta(days=DAYS_BACK)).strftime("%Y-%m-%dT00:00:00.000Z")
     date_to = now.strftime("%Y-%m-%dT23:59:59.999Z")
 
-    # Шаг 1: создать отчёт
+    clusters = {}
+    offset = 0
+    limit = 100
+
+    while True:
+        payload = {
+            "dir": "DESC",
+            "filter": {"since": date_from, "to": date_to, "status": ""},
+            "limit": limit,
+            "offset": offset,
+            "with": {"analytics_data": False, "financial_data": True},
+        }
+        r = requests.post(
+            "https://api-seller.ozon.ru/v2/posting/fbo/list",
+            headers=headers, json=payload, timeout=30,
+        )
+        if r.status_code != 200:
+            break
+        postings = r.json().get("result", [])
+        for p in postings:
+            fin = p.get("financial_data") or {}
+            clusters[p.get("posting_number", "")] = (
+                fin.get("cluster_from", ""),
+                fin.get("cluster_to", ""),
+            )
+        if len(postings) < limit:
+            break
+        offset += limit
+
+    return clusters
+
+
+def _fetch_fbo_report_csv(client_id, api_key):
+    """Получает CSV отчёт FBO. Возвращает список dict-строк."""
+    headers = {
+        "Client-Id": client_id,
+        "Api-Key": api_key,
+        "Content-Type": "application/json",
+    }
+    now = datetime.now(timezone.utc)
+    date_from = (now - timedelta(days=DAYS_BACK)).strftime("%Y-%m-%dT00:00:00.000Z")
+    date_to = now.strftime("%Y-%m-%dT23:59:59.999Z")
+
+    # Создать отчёт
     r = requests.post(
         "https://api-seller.ozon.ru/v1/report/postings/create",
         headers=headers,
@@ -158,7 +201,6 @@ def fetch_fbo_via_report(client_id, api_key):
         },
         timeout=30,
     )
-
     if r.status_code != 200:
         print(f"Ошибка создания отчёта FBO: {r.status_code} — {r.text}")
         return []
@@ -170,7 +212,7 @@ def fetch_fbo_via_report(client_id, api_key):
 
     print(f"Отчёт FBO создан, код: {code}. Ожидаю генерацию...")
 
-    # Шаг 2: ждём готовности
+    # Ждём готовности
     file_url = None
     for attempt in range(20):
         time.sleep(30)
@@ -180,15 +222,11 @@ def fetch_fbo_via_report(client_id, api_key):
             json={"code": code},
             timeout=30,
         )
-
         if r2.status_code != 200:
-            print(f"Ошибка статуса отчёта: {r2.status_code}")
             continue
-
         result = r2.json().get("result", {})
         status = result.get("status", "")
         print(f"Попытка {attempt + 1}: статус = {status}")
-
         if status == "success":
             file_url = result.get("file", "")
             break
@@ -197,38 +235,42 @@ def fetch_fbo_via_report(client_id, api_key):
             return []
 
     if not file_url:
-        print("Таймаут: отчёт FBO не был готов за 10 минут")
+        print("Таймаут: отчёт FBO не готов за 10 минут")
         return []
 
-    # Шаг 3: скачать CSV
+    # Скачать и распарсить CSV
     r3 = requests.get(file_url, timeout=120)
     if r3.status_code != 200:
-        print(f"Ошибка скачивания отчёта: {r3.status_code}")
+        print(f"Ошибка скачивания: {r3.status_code}")
         return []
 
-    # Шаг 4: парсить CSV
     content = r3.content.decode("utf-8-sig")
     reader = csv.DictReader(io.StringIO(content), delimiter=";")
+    return list(reader)
 
-    # Печатаем заголовки для отладки (первый запуск)
-    fieldnames = reader.fieldnames or []
-    print(f"Столбцы CSV: {fieldnames}")
+
+def fetch_fbo_orders(client_id, api_key):
+    """Объединяет данные из CSV отчёта и кластеры из v2 API."""
+    clusters = _fetch_fbo_clusters(client_id, api_key)
+    csv_rows = _fetch_fbo_report_csv(client_id, api_key)
 
     rows = []
-    for row in reader:
+    for row in csv_rows:
+        posting_number = row.get("Номер отправления", "")
+        cluster_from, cluster_to = clusters.get(posting_number, ("", ""))
         price = row.get("Ваша цена", "")
-        customer_price = row.get("Оплачено", "")
+        customer_price = row.get("Оплачено покупателем", "")
         rows.append([
             row.get("Номер заказа", ""),
-            row.get("Номер отправления", ""),
+            posting_number,
             row.get("Принят в обработку", ""),
             row.get("Дата отгрузки", ""),
             row.get("Статус", ""),
             row.get("Артикул", ""),
             fmt_num(price),
             row.get("Количество", ""),
-            row.get("Кластер отгрузки", ""),
-            row.get("Кластер доставки", ""),
+            cluster_from,
+            cluster_to,
             fmt_num(customer_price),
             calc_spp(price, customer_price),
         ])
@@ -279,7 +321,7 @@ def main():
     fbs_rows = fetch_fbs_orders(client_id, api_key)
     print(f"FBS: {len(fbs_rows)} строк")
 
-    fbo_rows = fetch_fbo_via_report(client_id, api_key)
+    fbo_rows = fetch_fbo_orders(client_id, api_key)
     print(f"FBO: {len(fbo_rows)} строк")
 
     write_report(fbs_rows, fbo_rows)
