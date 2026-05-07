@@ -14,7 +14,7 @@ GAP_COLS = 5
 
 # Период для исторической загрузки
 DATE_FROM = "2025-06-01T00:00:00.000Z"
-DATE_TO   = "2025-08-01T23:59:59.999Z"
+DATE_TO   = "2025-09-01T23:59:59.999Z"
 
 SCOPES = [
     "https://www.googleapis.com/auth/spreadsheets",
