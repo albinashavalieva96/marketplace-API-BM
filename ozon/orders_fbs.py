@@ -1,5 +1,4 @@
 import os
-import sys
 import json
 import requests
 import gspread
@@ -7,7 +6,7 @@ from datetime import datetime, timedelta, timezone
 from google.oauth2.service_account import Credentials
 
 SPREADSHEET_ID = "1q7nDWrMge3XwlplH5LOBa0z6aryp7PcIkBIjclzorQ4"
-SHEET_NAME = "FBS Заказы BM"
+SHEET_NAME = "Заказы BM"
 DAYS_BACK = 30
 
 SCOPES = [
@@ -54,7 +53,7 @@ def fmt_num(value, decimals=2):
         return ""
 
 
-def _calc_spp(price, customer_price):
+def calc_spp(price, customer_price):
     try:
         p = float(str(price).replace(",", "."))
         cp = float(str(customer_price).replace(",", "."))
@@ -63,7 +62,7 @@ def _calc_spp(price, customer_price):
         return ""
 
 
-def fetch_orders(client_id, api_key):
+def fetch_orders(client_id, api_key, schema):
     headers = {
         "Client-Id": client_id,
         "Api-Key": api_key,
@@ -81,28 +80,21 @@ def fetch_orders(client_id, api_key):
     while True:
         payload = {
             "dir": "DESC",
-            "filter": {
-                "since": date_from,
-                "to": date_to,
-                "status": "",
-            },
+            "filter": {"since": date_from, "to": date_to, "status": ""},
             "limit": limit,
             "offset": offset,
-            "with": {
-                "analytics_data": False,
-                "financial_data": True,
-            },
+            "with": {"analytics_data": False, "financial_data": True},
         }
 
         response = requests.post(
-            "https://api-seller.ozon.ru/v3/posting/fbs/list",
+            f"https://api-seller.ozon.ru/v3/posting/{schema}/list",
             headers=headers,
             json=payload,
             timeout=30,
         )
 
         if response.status_code != 200:
-            print(f"Ошибка FBS: {response.status_code} — {response.text}")
+            print(f"Ошибка {schema.upper()}: {response.status_code} — {response.text}")
             break
 
         postings = response.json().get("result", {}).get("postings", [])
@@ -110,11 +102,12 @@ def fetch_orders(client_id, api_key):
         for posting in postings:
             financial = posting.get("financial_data") or {}
             fin_products = financial.get("products") or []
-
             status = STATUS_MAP.get(posting.get("status", ""), posting.get("status", ""))
 
             for i, product in enumerate(posting.get("products", [])):
                 fin = fin_products[i] if i < len(fin_products) else {}
+                price = product.get("price", "")
+                customer_price = fin.get("customer_price", "")
                 row = [
                     posting.get("order_number", ""),
                     posting.get("posting_number", ""),
@@ -122,12 +115,12 @@ def fetch_orders(client_id, api_key):
                     fmt_dt(posting.get("shipment_date", "")),
                     status,
                     product.get("offer_id", ""),
-                    fmt_num(product.get("price", "")),
+                    fmt_num(price),
                     product.get("quantity", 0),
                     financial.get("cluster_from", ""),
                     financial.get("cluster_to", ""),
-                    fmt_num(fin.get("customer_price", "")),
-                    _calc_spp(product.get("price"), fin.get("customer_price")),
+                    fmt_num(customer_price),
+                    calc_spp(price, customer_price),
                 ]
                 all_rows.append(row)
 
@@ -138,7 +131,7 @@ def fetch_orders(client_id, api_key):
     return all_rows
 
 
-def write_report(rows):
+def write_report(fbs_rows, fbo_rows):
     creds_dict = json.loads(os.environ["GOOGLE_CREDENTIALS"])
     creds = Credentials.from_service_account_info(creds_dict, scopes=SCOPES)
     client = gspread.authorize(creds)
@@ -147,22 +140,31 @@ def write_report(rows):
     try:
         worksheet = spreadsheet.worksheet(SHEET_NAME)
     except gspread.WorksheetNotFound:
-        worksheet = spreadsheet.add_worksheet(title=SHEET_NAME, rows=10000, cols=20)
+        worksheet = spreadsheet.add_worksheet(title=SHEET_NAME, rows=10000, cols=30)
 
     worksheet.clear()
 
-    # Строка 1: заголовок служебного столбца A + заголовки данных
-    header_row = ["Заказы с наших складов с кластерами"] + DATA_HEADERS
+    # Строка 1: заголовки FBS + заголовки FBO
+    header_row = ["Заказы FBS"] + DATA_HEADERS + ["Заказы FBO"] + DATA_HEADERS
 
-    # Строки данных: пустой столбец A + данные
-    all_rows = [header_row] + [[""] + row for row in rows]
+    # Выравниваем длины списков
+    max_rows = max(len(fbs_rows), len(fbo_rows))
+    empty = [""] * len(DATA_HEADERS)
+    fbs_padded = fbs_rows + [empty] * (max_rows - len(fbs_rows))
+    fbo_padded = fbo_rows + [empty] * (max_rows - len(fbo_rows))
+
+    # Объединяем строки: [пусто(FBS service)] + FBS данные + [пусто(FBO service)] + FBO данные
+    all_rows = [header_row]
+    for fbs, fbo in zip(fbs_padded, fbo_padded):
+        all_rows.append([""] + fbs + [""] + fbo)
+
     worksheet.update("A1", all_rows)
 
-    # Служебные ячейки: A2 = "Обновлен:", A3 = дата, A4 = время (московское время UTC+3)
+    # Служебные ячейки (московское время UTC+3)
     now = datetime.now(timezone.utc).astimezone(timezone(timedelta(hours=3)))
     worksheet.update("A2", [["Обновлен:"], [now.strftime("%Y-%m-%d")], [now.strftime("%H:%M")]])
 
-    print(f"Записано {len(rows)} строк в лист '{SHEET_NAME}'")
+    print(f"FBS: {len(fbs_rows)} строк, FBO: {len(fbo_rows)} строк → лист '{SHEET_NAME}'")
 
 
 def main():
@@ -170,12 +172,12 @@ def main():
     api_key = os.environ["OZON_BM_API_KEY"]
 
     print(f"Запуск: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
-    print(f"Загружаю FBS заказы Ozon BM за последние {DAYS_BACK} дней...")
+    print(f"Загружаю заказы Ozon BM за последние {DAYS_BACK} дней...")
 
-    rows = fetch_orders(client_id, api_key)
-    print(f"Получено строк: {len(rows)}")
+    fbs_rows = fetch_orders(client_id, api_key, "fbs")
+    fbo_rows = fetch_orders(client_id, api_key, "fbo")
 
-    write_report(rows)
+    write_report(fbs_rows, fbo_rows)
     print("Готово!")
 
 
