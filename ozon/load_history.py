@@ -13,8 +13,8 @@ SPREADSHEET_ID = "1q7nDWrMge3XwlplH5LOBa0z6aryp7PcIkBIjclzorQ4"
 SHEET_NAME = "Заказы BM"
 
 # Период для исторической загрузки
-DATE_FROM = "2025-12-01T00:00:00.000Z"
-DATE_TO   = "2026-03-01T23:59:59.999Z"
+DATE_FROM = "2025-06-01T00:00:00.000Z"
+DATE_TO   = "2025-12-01T23:59:59.999Z"
 
 STATUS_MAP = {
     "awaiting_approve": "Ожидает подтверждения",
