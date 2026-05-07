@@ -38,6 +38,8 @@ HEADERS = [
     "Стоимость фулфилмента",
     "Стоимость доставки",
     "Стоимость возврата",
+    "Склад отправки",
+    "Склад отгрузки",
 ]
 
 STATUS_MAP = {
@@ -143,6 +145,8 @@ def fetch_orders(client_id, api_key):
                         services.get("marketplace_service_item_fulfillment", ""),
                         services.get("marketplace_service_item_direct_flow_trans", ""),
                         services.get("marketplace_service_item_return_flow_trans", ""),
+                        financial.get("cluster_from", ""),
+                        financial.get("cluster_to", ""),
                     ]
                     all_rows.append(row)
 
