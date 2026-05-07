@@ -72,7 +72,7 @@ def fetch_orders(client_id, api_key):
 
     for schema in ["fbo", "fbs"]:
         offset = 0
-        limit = 1000
+        limit = 100
 
         while True:
             payload = {
