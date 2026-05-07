@@ -158,8 +158,8 @@ def write_report(rows):
     all_rows = [header_row] + [[""] + row for row in rows]
     worksheet.update("A1", all_rows)
 
-    # Служебные ячейки: A2 = "Обновлен:", A3 = дата, A4 = время
-    now = datetime.now()
+    # Служебные ячейки: A2 = "Обновлен:", A3 = дата, A4 = время (московское время UTC+3)
+    now = datetime.now(timezone.utc).astimezone(timezone(timedelta(hours=3)))
     worksheet.update("A2", [["Обновлен:"], [now.strftime("%Y-%m-%d")], [now.strftime("%H:%M")]])
 
     print(f"Записано {len(rows)} строк в лист '{SHEET_NAME}'")
