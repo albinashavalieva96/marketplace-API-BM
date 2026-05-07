@@ -106,6 +106,7 @@ def merge_and_write(spreadsheet_id, sheet_name, fbs_new, fbo_new):
         all_rows.append([service_cell] + list(fbs) + gap + [""] + list(fbo))
 
     worksheet.clear()
+    worksheet.resize(rows=max(len(all_rows), 1), cols=FBO_END)
     worksheet.update("A1", all_rows)
 
     print(f"Итого FBS: {len(fbs_sorted)}, FBO: {len(fbo_sorted)} → лист '{sheet_name}'")
