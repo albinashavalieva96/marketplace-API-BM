@@ -1,4 +1,4 @@
-name: Ozon BM — Заказы FBS
+name: Ozon BM — Заказы FBS и FBO
 
 on:
   schedule:
