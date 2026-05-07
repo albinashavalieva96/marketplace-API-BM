@@ -28,7 +28,6 @@ payload = {
     },
 }
 
-found = False
 for schema in ["fbo", "fbs"]:
     response = requests.post(
         f"https://api-seller.ozon.ru/v3/posting/{schema}/list",
@@ -36,15 +35,16 @@ for schema in ["fbo", "fbs"]:
         json=payload,
         timeout=30,
     )
+    print(f"\n=== {schema.upper()} — статус ответа: {response.status_code} ===")
     data = response.json()
+
+    if response.status_code != 200:
+        print(f"Ошибка: {data}")
+        continue
+
     postings = data.get("result", {}).get("postings", [])
+    print(f"Найдено отправлений: {len(postings)}")
 
     if postings:
-        posting = postings[0]
-        print(f"=== {schema.upper()} — FULL POSTING (все поля) ===")
-        print(json.dumps(posting, indent=2, ensure_ascii=False))
-        found = True
-        break
-
-if not found:
-    print("Нет заказов за последние 30 дней")
+        print(f"Первое отправление:")
+        print(json.dumps(postings[0], indent=2, ensure_ascii=False))
