@@ -16,7 +16,7 @@ now = datetime.now(timezone.utc)
 payload = {
     "dir": "DESC",
     "filter": {
-        "since": (now - timedelta(days=7)).strftime("%Y-%m-%dT00:00:00.000Z"),
+        "since": (now - timedelta(days=30)).strftime("%Y-%m-%dT00:00:00.000Z"),
         "to": now.strftime("%Y-%m-%dT23:59:59.999Z"),
         "status": "",
     },
@@ -28,21 +28,25 @@ payload = {
     },
 }
 
-response = requests.post(
-    "https://api-seller.ozon.ru/v3/posting/fbo/list",
-    headers=headers,
-    json=payload,
-    timeout=30,
-)
+found = False
+for schema in ["fbo", "fbs"]:
+    response = requests.post(
+        f"https://api-seller.ozon.ru/v3/posting/{schema}/list",
+        headers=headers,
+        json=payload,
+        timeout=30,
+    )
+    data = response.json()
+    postings = data.get("result", {}).get("postings", [])
 
-data = response.json()
-postings = data.get("result", {}).get("postings", [])
+    if postings:
+        posting = postings[0]
+        print(f"=== {schema.upper()} — financial_data ===")
+        print(json.dumps(posting.get("financial_data"), indent=2, ensure_ascii=False))
+        print(f"\n=== {schema.upper()} — products ===")
+        print(json.dumps(posting.get("products"), indent=2, ensure_ascii=False))
+        found = True
+        break
 
-if postings:
-    posting = postings[0]
-    print("=== financial_data ===")
-    print(json.dumps(posting.get("financial_data"), indent=2, ensure_ascii=False))
-    print("\n=== products ===")
-    print(json.dumps(posting.get("products"), indent=2, ensure_ascii=False))
-else:
-    print("Нет заказов за последние 7 дней")
+if not found:
+    print("Нет заказов за последние 30 дней")
