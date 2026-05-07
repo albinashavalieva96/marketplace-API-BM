@@ -136,7 +136,7 @@ def fetch_orders(client_id, api_key):
                         analytics.get("city", ""),
                         analytics.get("delivery_type", ""),
                         analytics.get("warehouse_name", ""),
-                        fin.get("client_price", ""),
+                        fin.get("customer_price", ""),
                         fin.get("commission_amount", ""),
                         fin.get("commission_percent", ""),
                         fin.get("payout", ""),
