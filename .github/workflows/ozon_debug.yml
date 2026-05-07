@@ -1,0 +1,19 @@
+name: Ozon — Debug (запускать вручную)
+
+on:
+  workflow_dispatch:
+
+jobs:
+  debug:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: pip install requests
+      - name: Run debug script
+        env:
+          OZON_BM_CLIENT_ID: ${{ secrets.OZON_BM_CLIENT_ID }}
+          OZON_BM_API_KEY: ${{ secrets.OZON_BM_API_KEY }}
+        run: python ozon/debug_order.py
