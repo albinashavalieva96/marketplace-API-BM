@@ -41,10 +41,8 @@ for schema in ["fbo", "fbs"]:
 
     if postings:
         posting = postings[0]
-        print(f"=== {schema.upper()} — financial_data ===")
-        print(json.dumps(posting.get("financial_data"), indent=2, ensure_ascii=False))
-        print(f"\n=== {schema.upper()} — products ===")
-        print(json.dumps(posting.get("products"), indent=2, ensure_ascii=False))
+        print(f"=== {schema.upper()} — FULL POSTING (все поля) ===")
+        print(json.dumps(posting, indent=2, ensure_ascii=False))
         found = True
         break
 
