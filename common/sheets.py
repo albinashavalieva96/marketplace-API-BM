@@ -85,8 +85,8 @@ def merge_and_write(spreadsheet_id, sheet_name, fbs_new, fbo_new):
     def sort_key(r):
         return r[IDX_DATE] if len(r) > IDX_DATE else ""
 
-    fbs_sorted = sorted(fbs_dict.values(), key=sort_key, reverse=True)
-    fbo_sorted = sorted(fbo_dict.values(), key=sort_key, reverse=True)
+    fbs_sorted = sorted(fbs_dict.values(), key=sort_key)
+    fbo_sorted = sorted(fbo_dict.values(), key=sort_key)
 
     # Формируем строки листа
     gap = [""] * GAP_COLS
