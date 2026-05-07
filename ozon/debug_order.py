@@ -13,38 +13,27 @@ headers = {
 }
 
 now = datetime.now(timezone.utc)
-payload = {
-    "dir": "DESC",
-    "filter": {
-        "since": (now - timedelta(days=30)).strftime("%Y-%m-%dT00:00:00.000Z"),
-        "to": now.strftime("%Y-%m-%dT23:59:59.999Z"),
-        "status": "",
-    },
-    "limit": 1,
-    "offset": 0,
-    "with": {
-        "analytics_data": True,
-        "financial_data": True,
-    },
-}
 
-for schema in ["fbo", "fbs"]:
+# Пробуем разные периоды для FBO
+fbo_periods = [30, 90, 180]
+
+print("=== Проверка FBO за разные периоды ===")
+for days in fbo_periods:
+    payload = {
+        "dir": "DESC",
+        "filter": {
+            "since": (now - timedelta(days=days)).strftime("%Y-%m-%dT00:00:00.000Z"),
+            "to": now.strftime("%Y-%m-%dT23:59:59.999Z"),
+            "status": "",
+        },
+        "limit": 10,
+        "offset": 0,
+        "with": {"analytics_data": False, "financial_data": True},
+    }
     response = requests.post(
-        f"https://api-seller.ozon.ru/v3/posting/{schema}/list",
-        headers=headers,
-        json=payload,
-        timeout=30,
+        "https://api-seller.ozon.ru/v3/posting/fbo/list",
+        headers=headers, json=payload, timeout=30,
     )
-    print(f"\n=== {schema.upper()} — статус ответа: {response.status_code} ===")
     data = response.json()
-
-    if response.status_code != 200:
-        print(f"Ошибка: {data}")
-        continue
-
     postings = data.get("result", {}).get("postings", [])
-    print(f"Найдено отправлений: {len(postings)}")
-
-    if postings:
-        print(f"Первое отправление:")
-        print(json.dumps(postings[0], indent=2, ensure_ascii=False))
+    print(f"За {days} дней: {response.status_code}, найдено: {len(postings)}")
