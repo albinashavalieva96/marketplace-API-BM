@@ -10,7 +10,8 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from common.sheets import merge_and_write, DATA_HEADERS
 
 SPREADSHEET_ID = "1q7nDWrMge3XwlplH5LOBa0z6aryp7PcIkBIjclzorQ4"
-SHEET_NAME = "Заказы BM"
+FBS_SHEET = "API - Заказы FBS"
+FBO_SHEET = "API - Заказы FBO"
 
 # Период для исторической загрузки
 DATE_FROM = "2026-03-01T00:00:00.000Z"
@@ -242,7 +243,7 @@ def main():
     fbo_rows = fetch_fbo(client_id, api_key)
     print(f"FBO: {len(fbo_rows)} строк")
 
-    merge_and_write(SPREADSHEET_ID, SHEET_NAME, fbs_rows, fbo_rows)
+    merge_and_write(SPREADSHEET_ID, FBS_SHEET, FBO_SHEET, fbs_rows, fbo_rows)
     print("Готово!")
 
 
