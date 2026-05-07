@@ -86,18 +86,24 @@ def fetch_orders(client_id, api_key, schema):
             "with": {"analytics_data": False, "financial_data": True},
         }
 
-        response = requests.post(
-            f"https://api-seller.ozon.ru/v3/posting/{schema}/list",
-            headers=headers,
-            json=payload,
-            timeout=30,
-        )
+        # FBO использует v2 (v3 возвращает пустой список)
+        if schema == "fbo":
+            url = "https://api-seller.ozon.ru/v2/posting/fbo/list"
+        else:
+            url = f"https://api-seller.ozon.ru/v3/posting/{schema}/list"
+
+        response = requests.post(url, headers=headers, json=payload, timeout=30)
 
         if response.status_code != 200:
             print(f"Ошибка {schema.upper()}: {response.status_code} — {response.text}")
             break
 
-        postings = response.json().get("result", {}).get("postings", [])
+        data = response.json()
+        # v2 FBO: result — массив; v3 FBS: result.postings — массив
+        if schema == "fbo":
+            postings = data.get("result", [])
+        else:
+            postings = data.get("result", {}).get("postings", [])
 
         for posting in postings:
             financial = posting.get("financial_data") or {}
