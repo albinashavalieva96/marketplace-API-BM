@@ -47,11 +47,18 @@ def fmt_dt(value):
     return value[:19].replace("T", " ")
 
 
+def fmt_num(value, decimals=2):
+    try:
+        return str(round(float(str(value).replace(",", ".")), decimals)).replace(".", ",")
+    except (ValueError, TypeError):
+        return ""
+
+
 def _calc_spp(price, customer_price):
     try:
         p = float(str(price).replace(",", "."))
         cp = float(str(customer_price).replace(",", "."))
-        return f"{round((p - cp) / p * 100, 2)}%" if cp and p else ""
+        return str(round((p - cp) / p, 10)).replace(".", ",") if cp and p else ""
     except (ValueError, TypeError):
         return ""
 
@@ -115,11 +122,11 @@ def fetch_orders(client_id, api_key):
                     fmt_dt(posting.get("shipment_date", "")),
                     status,
                     product.get("offer_id", ""),
-                    product.get("price", ""),
+                    fmt_num(product.get("price", "")),
                     product.get("quantity", 0),
                     financial.get("cluster_from", ""),
                     financial.get("cluster_to", ""),
-                    fin.get("customer_price", ""),
+                    fmt_num(fin.get("customer_price", "")),
                     _calc_spp(product.get("price"), fin.get("customer_price")),
                 ]
                 all_rows.append(row)
