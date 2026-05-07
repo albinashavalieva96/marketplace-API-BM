@@ -8,6 +8,7 @@ from google.oauth2.service_account import Credentials
 SPREADSHEET_ID = "1q7nDWrMge3XwlplH5LOBa0z6aryp7PcIkBIjclzorQ4"
 SHEET_NAME = "Заказы BM"
 DAYS_BACK = 30
+GAP_COLS = 5  # пустых столбцов между FBS и FBO
 
 SCOPES = [
     "https://www.googleapis.com/auth/spreadsheets",
@@ -146,29 +147,32 @@ def write_report(fbs_rows, fbo_rows):
     try:
         worksheet = spreadsheet.worksheet(SHEET_NAME)
     except gspread.WorksheetNotFound:
-        worksheet = spreadsheet.add_worksheet(title=SHEET_NAME, rows=10000, cols=30)
+        worksheet = spreadsheet.add_worksheet(title=SHEET_NAME, rows=10000, cols=40)
 
     worksheet.clear()
 
-    # Строка 1: заголовки FBS + заголовки FBO
-    header_row = ["Заказы FBS"] + DATA_HEADERS + ["Заказы FBO"] + DATA_HEADERS
+    gap = [""] * GAP_COLS
 
-    # Выравниваем длины списков
-    max_rows = max(len(fbs_rows), len(fbo_rows))
+    # Строка 1: заголовки FBS + разрыв + заголовки FBO
+    header_row = ["Заказы FBS"] + DATA_HEADERS + gap + ["Заказы FBO"] + DATA_HEADERS
+
+    # Выравниваем длины
+    max_rows = max(len(fbs_rows), len(fbo_rows), 1)
     empty = [""] * len(DATA_HEADERS)
     fbs_padded = fbs_rows + [empty] * (max_rows - len(fbs_rows))
     fbo_padded = fbo_rows + [empty] * (max_rows - len(fbo_rows))
 
-    # Объединяем строки: [пусто(FBS service)] + FBS данные + [пусто(FBO service)] + FBO данные
+    # Служебные метки для столбца A (Обновлен:, дата, время)
+    now = datetime.now(timezone.utc).astimezone(timezone(timedelta(hours=3)))
+    service = ["Обновлен:", now.strftime("%Y-%m-%d"), now.strftime("%H:%M")]
+
+    # Собираем все строки за один раз
     all_rows = [header_row]
-    for fbs, fbo in zip(fbs_padded, fbo_padded):
-        all_rows.append([""] + fbs + [""] + fbo)
+    for i, (fbs, fbo) in enumerate(zip(fbs_padded, fbo_padded)):
+        service_cell = service[i] if i < len(service) else ""
+        all_rows.append([service_cell] + fbs + gap + [""] + fbo)
 
     worksheet.update("A1", all_rows)
-
-    # Служебные ячейки (московское время UTC+3)
-    now = datetime.now(timezone.utc).astimezone(timezone(timedelta(hours=3)))
-    worksheet.update("A2", [["Обновлен:"], [now.strftime("%Y-%m-%d")], [now.strftime("%H:%M")]])
 
     print(f"FBS: {len(fbs_rows)} строк, FBO: {len(fbo_rows)} строк → лист '{SHEET_NAME}'")
 
