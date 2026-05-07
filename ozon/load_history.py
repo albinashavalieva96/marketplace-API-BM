@@ -1,40 +1,20 @@
 import os
 import io
 import csv
-import json
+import sys
 import time
 import requests
-import gspread
 from datetime import datetime, timedelta, timezone
-from google.oauth2.service_account import Credentials
+
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+from common.sheets import merge_and_write, DATA_HEADERS
 
 SPREADSHEET_ID = "1q7nDWrMge3XwlplH5LOBa0z6aryp7PcIkBIjclzorQ4"
-SHEET_NAME = "История заказов BM"
-GAP_COLS = 5
+SHEET_NAME = "Заказы BM"
 
 # Период для исторической загрузки
 DATE_FROM = "2025-06-01T00:00:00.000Z"
 DATE_TO   = "2025-09-01T23:59:59.999Z"
-
-SCOPES = [
-    "https://www.googleapis.com/auth/spreadsheets",
-    "https://www.googleapis.com/auth/drive",
-]
-
-DATA_HEADERS = [
-    "Номер заказа",
-    "Номер отправления",
-    "Принят в обработку",
-    "Дата отгрузки",
-    "Статус",
-    "Артикул",
-    "Цена продажи",
-    "Количество",
-    "Кластер отгрузки",
-    "Кластер доставки",
-    "Оплатили",
-    "СПП",
-]
 
 STATUS_MAP = {
     "awaiting_approve": "Ожидает подтверждения",
@@ -248,40 +228,6 @@ def fetch_fbo(client_id, api_key):
     return rows
 
 
-def write_report(fbs_rows, fbo_rows):
-    creds_dict = json.loads(os.environ["GOOGLE_CREDENTIALS"])
-    creds = Credentials.from_service_account_info(creds_dict, scopes=SCOPES)
-    client = gspread.authorize(creds)
-
-    spreadsheet = client.open_by_key(SPREADSHEET_ID)
-    try:
-        worksheet = spreadsheet.worksheet(SHEET_NAME)
-    except gspread.WorksheetNotFound:
-        worksheet = spreadsheet.add_worksheet(title=SHEET_NAME, rows=20000, cols=40)
-
-    worksheet.clear()
-
-    gap = [""] * GAP_COLS
-    header_row = ["Заказы FBS"] + DATA_HEADERS + gap + ["Заказы FBO"] + DATA_HEADERS
-
-    max_rows = max(len(fbs_rows), len(fbo_rows), 1)
-    empty = [""] * len(DATA_HEADERS)
-    fbs_padded = fbs_rows + [empty] * (max_rows - len(fbs_rows))
-    fbo_padded = fbo_rows + [empty] * (max_rows - len(fbo_rows))
-
-    now = datetime.now(timezone.utc).astimezone(timezone(timedelta(hours=3)))
-    service = [
-        f"Период: {DATE_FROM[:10]} — {DATE_TO[:10]}",
-        f"Обновлен: {now.strftime('%Y-%m-%d %H:%M')}",
-    ]
-
-    all_rows = [header_row]
-    for i, (fbs, fbo) in enumerate(zip(fbs_padded, fbo_padded)):
-        service_cell = service[i] if i < len(service) else ""
-        all_rows.append([service_cell] + fbs + gap + [""] + fbo)
-
-    worksheet.update("A1", all_rows)
-    print(f"FBS: {len(fbs_rows)} строк, FBO: {len(fbo_rows)} строк → лист '{SHEET_NAME}'")
 
 
 def main():
@@ -296,7 +242,7 @@ def main():
     fbo_rows = fetch_fbo(client_id, api_key)
     print(f"FBO: {len(fbo_rows)} строк")
 
-    write_report(fbs_rows, fbo_rows)
+    merge_and_write(SPREADSHEET_ID, SHEET_NAME, fbs_rows, fbo_rows)
     print("Готово!")
 
 
