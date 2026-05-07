@@ -27,6 +27,7 @@ DATA_HEADERS = [
     "Кластер отгрузки",
     "Кластер доставки",
     "Оплатили",
+    "СПП",
 ]
 
 STATUS_MAP = {
@@ -44,6 +45,15 @@ def fmt_dt(value):
     if not value:
         return ""
     return value[:19].replace("T", " ")
+
+
+def _calc_spp(price, customer_price):
+    try:
+        p = float(str(price).replace(",", "."))
+        cp = float(str(customer_price).replace(",", "."))
+        return round(p - cp, 2) if cp else ""
+    except (ValueError, TypeError):
+        return ""
 
 
 def fetch_orders(client_id, api_key):
@@ -110,6 +120,7 @@ def fetch_orders(client_id, api_key):
                     financial.get("cluster_from", ""),
                     financial.get("cluster_to", ""),
                     fin.get("customer_price", ""),
+                    _calc_spp(product.get("price"), fin.get("customer_price")),
                 ]
                 all_rows.append(row)
 
