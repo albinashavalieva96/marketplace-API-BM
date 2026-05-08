@@ -1,0 +1,23 @@
+name: ЯМ Бар — Заказы
+
+on:
+  schedule:
+    - cron: '20,50 * * * *'
+  workflow_dispatch:
+
+jobs:
+  update-ym-bar-orders:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: pip install -r requirements.txt
+      - name: Run ЯМ Бар orders script
+        env:
+          YM_BAR_API_TOKEN: ${{ secrets.YM_BAR_API_TOKEN }}
+          GOOGLE_CREDENTIALS: ${{ secrets.GOOGLE_CREDENTIALS }}
+        run: python ym/orders_bar.py
