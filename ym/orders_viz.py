@@ -80,7 +80,7 @@ def fetch_campaign_orders(api_token, campaign_id, date_from, date_to):
         pager = result.get("pager", {})
 
         if page == 1 and orders:
-            print(f"Кампания {campaign_id}: пример заказа — {list(orders[0].keys())}")
+            print(f"Кампания {campaign_id}: delivery = {orders[0].get('delivery', {})}")
 
         for order in orders:
             status = STATUS_MAP.get(order.get("status", ""), order.get("status", ""))
