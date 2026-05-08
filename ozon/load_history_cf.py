@@ -14,8 +14,8 @@ FBS_SHEET = "API - Заказы FBS"
 FBO_SHEET = "API - Заказы FBO"
 
 # Период для исторической загрузки
-DATE_FROM = "2025-06-01T00:00:00.000Z"
-DATE_TO   = "2025-09-01T23:59:59.999Z"
+DATE_FROM = "2025-09-01T00:00:00.000Z"
+DATE_TO   = "2025-12-01T23:59:59.999Z"
 
 STATUS_MAP = {
     "awaiting_approve": "Ожидает подтверждения",
