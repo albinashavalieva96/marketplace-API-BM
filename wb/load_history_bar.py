@@ -44,8 +44,8 @@ def fetch_orders(api_key):
             timeout=120,
         )
         if r.status_code == 429:
-            print(f"429 — лимит запросов, жду 65 сек (попытка {attempt + 1}/5)...")
-            time.sleep(65)
+            print(f"429 — лимит запросов, жду 5 мин (попытка {attempt + 1}/5)...")
+            time.sleep(300)
             continue
         if r.status_code != 200:
             print(f"Ошибка WB: {r.status_code} — {r.text}")

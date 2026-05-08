@@ -2,7 +2,7 @@ name: WB Бар — Заказы
 
 on:
   schedule:
-    - cron: '5,35 * * * *'
+    - cron: '15,45 * * * *'
   workflow_dispatch:
 
 jobs:
