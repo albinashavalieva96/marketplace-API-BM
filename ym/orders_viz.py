@@ -10,7 +10,10 @@ SPREADSHEET_ID = "1f5I82g5Nmy3AMn9s0AWta-Hc0HoHSAi9BWlSomzoppM"
 SHEET_NAME = "API - ЯМ Виз - Заказы"
 DAYS_BACK = 30
 
-CAMPAIGN_IDS = [22110675, 56291750]
+CAMPAIGN_IDS = {
+    22110675: "FBY",
+    56291750: "FBS",
+}
 
 STATUS_MAP = {
     "CANCELLED": "Отменено",
@@ -84,8 +87,7 @@ def fetch_campaign_orders(api_token, campaign_id, date_from, date_to):
             delivery = order.get("delivery", {})
             shipment = delivery.get("shipment", {})
             region = delivery.get("region", {})
-            partner_type = delivery.get("deliveryPartnerType", "")
-            supply_type = "FBY" if partner_type == "YANDEX_MARKET" else "FBS"
+            supply_type = CAMPAIGN_IDS.get(campaign_id, "FBS")
             warehouse_name = shipment.get("warehouseName", "")
             region_name = region.get("name", "")
             shipment_date = shipment.get("date", "")
@@ -129,9 +131,9 @@ def main():
     print(f"Загружаю заказы ЯМ Виз за последние {DAYS_BACK} дней ({date_from} — {date_to})...")
 
     all_rows = []
-    for campaign_id in CAMPAIGN_IDS:
+    for campaign_id, supply_type in CAMPAIGN_IDS.items():
         rows = fetch_campaign_orders(api_token, campaign_id, date_from, date_to)
-        print(f"Кампания {campaign_id}: {len(rows)} строк")
+        print(f"Кампания {campaign_id} ({supply_type}): {len(rows)} строк")
         all_rows.extend(rows)
 
     print(f"Итого: {len(all_rows)} строк")

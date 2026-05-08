@@ -9,7 +9,10 @@ from common.sheets import write_sheet
 SPREADSHEET_ID = "1f5I82g5Nmy3AMn9s0AWta-Hc0HoHSAi9BWlSomzoppM"
 SHEET_NAME = "API - ЯМ Виз - Заказы"
 
-CAMPAIGN_IDS = [22110675, 56291750]
+CAMPAIGN_IDS = {
+    22110675: "FBY",
+    56291750: "FBS",
+}
 
 # Период для исторической загрузки
 DATE_FROM = "2025-06-01"
@@ -118,7 +121,7 @@ def fetch_campaign_orders_range(api_token, campaign_id, date_from_str, date_to_s
     return rows
 
 
-def fetch_campaign_orders(api_token, campaign_id):
+def fetch_campaign_orders(api_token, campaign_id, supply_type):
     """Разбивает период на куски по 29 дней и объединяет результаты."""
     start = datetime.strptime(DATE_FROM, "%Y-%m-%d")
     end = datetime.strptime(DATE_TO, "%Y-%m-%d")
@@ -130,6 +133,9 @@ def fetch_campaign_orders(api_token, campaign_id):
         df = chunk_start.strftime("%d-%m-%Y")
         dt = chunk_end.strftime("%d-%m-%Y")
         chunk_rows = fetch_campaign_orders_range(api_token, campaign_id, df, dt)
+        # Устанавливаем тип поставки по кампании
+        for row in chunk_rows:
+            row[-1] = supply_type
         print(f"  {df} — {dt}: {len(chunk_rows)} строк")
         rows.extend(chunk_rows)
         chunk_start = chunk_end + timedelta(days=1)
@@ -143,9 +149,9 @@ def main():
     print(f"Исторический период: {DATE_FROM} — {DATE_TO}")
 
     all_rows = []
-    for campaign_id in CAMPAIGN_IDS:
-        rows = fetch_campaign_orders(api_token, campaign_id)
-        print(f"Кампания {campaign_id}: {len(rows)} строк")
+    for campaign_id, supply_type in CAMPAIGN_IDS.items():
+        rows = fetch_campaign_orders(api_token, campaign_id, supply_type)
+        print(f"Кампания {campaign_id} ({supply_type}): {len(rows)} строк")
         all_rows.extend(rows)
 
     print(f"Итого: {len(all_rows)} строк")
