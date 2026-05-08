@@ -1,0 +1,23 @@
+name: ЯМ Виз — Заказы
+
+on:
+  schedule:
+    - cron: '10,40 * * * *'
+  workflow_dispatch:
+
+jobs:
+  update-ym-viz-orders:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: pip install -r requirements.txt
+      - name: Run ЯМ Виз orders script
+        env:
+          YM_VIZ_API_TOKEN: ${{ secrets.YM_VIZ_API_TOKEN }}
+          GOOGLE_CREDENTIALS: ${{ secrets.GOOGLE_CREDENTIALS }}
+        run: python ym/orders_viz.py

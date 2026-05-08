@@ -1,0 +1,21 @@
+name: ЯМ Виз — История заказов (только вручную)
+
+on:
+  workflow_dispatch:
+
+jobs:
+  load-ym-viz-history:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: pip install -r requirements.txt
+      - name: Run ЯМ Виз history script
+        env:
+          YM_VIZ_API_TOKEN: ${{ secrets.YM_VIZ_API_TOKEN }}
+          GOOGLE_CREDENTIALS: ${{ secrets.GOOGLE_CREDENTIALS }}
+        run: python ym/load_history_viz.py
