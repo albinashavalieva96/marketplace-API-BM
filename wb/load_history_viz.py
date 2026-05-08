@@ -55,6 +55,7 @@ def fetch_orders(api_key):
         if order_date and order_date >= DATE_TO:
             continue
         status = "Отменено" if o.get("isCancel") else "В работе"
+        supply_type = "FBO" if o.get("warehouseType") == "Склад WB" else "FBS"
         rows.append([
             o.get("gNumber", ""),
             o.get("srid", ""),
@@ -65,9 +66,10 @@ def fetch_orders(api_key):
             fmt_num(o.get("totalPrice", "")),
             o.get("quantity", 0),
             o.get("warehouseName", ""),
-            o.get("oblast", ""),
+            o.get("oblastOkrugName", ""),
             fmt_num(o.get("finishedPrice", "")),
             fmt_spp(o.get("spp", "")),
+            supply_type,
         ])
 
     return rows

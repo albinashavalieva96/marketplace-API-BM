@@ -46,14 +46,10 @@ def fetch_orders(api_key):
         print(f"Ошибка WB: {r.status_code} — {r.text}")
         return []
 
-    data = r.json()
-    if data:
-        print("Поля первого заказа:", list(data[0].keys()))
-        print("Пример:", data[0])
-
     rows = []
-    for o in data:
+    for o in r.json():
         status = "Отменено" if o.get("isCancel") else "В работе"
+        supply_type = "FBO" if o.get("warehouseType") == "Склад WB" else "FBS"
         rows.append([
             o.get("gNumber", ""),
             o.get("srid", ""),
@@ -64,9 +60,10 @@ def fetch_orders(api_key):
             fmt_num(o.get("totalPrice", "")),
             o.get("quantity", 0),
             o.get("warehouseName", ""),
-            o.get("oblast", ""),
+            o.get("oblastOkrugName", ""),
             fmt_num(o.get("finishedPrice", "")),
             fmt_spp(o.get("spp", "")),
+            supply_type,
         ])
 
     return rows
