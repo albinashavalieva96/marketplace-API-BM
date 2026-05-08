@@ -7,7 +7,7 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from common.sheets import write_sheet
 
 SPREADSHEET_ID = "1f5I82g5Nmy3AMn9s0AWta-Hc0HoHSAi9BWlSomzoppM"
-SHEET_NAME = "API - Заказы WB"
+SHEET_NAME = "API - WB Виз - Заказы"
 DAYS_BACK = 30
 
 
