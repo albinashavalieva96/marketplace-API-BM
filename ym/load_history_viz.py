@@ -1,7 +1,7 @@
 import os
 import sys
 import requests
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from common.sheets import write_sheet
@@ -11,9 +11,9 @@ SHEET_NAME = "API - ЯМ Виз - Заказы"
 
 CAMPAIGN_IDS = [22110675, 56291750]
 
-# Период для исторической загрузки (DD-MM-YYYY)
-DATE_FROM = "01-06-2025"
-DATE_TO   = "01-09-2025"
+# Период для исторической загрузки
+DATE_FROM = "2025-06-01"
+DATE_TO   = "2025-09-01"
 
 STATUS_MAP = {
     "CANCELLED": "Отменено",
@@ -57,7 +57,8 @@ def calc_spp(price, buyer_price):
         return ""
 
 
-def fetch_campaign_orders(api_token, campaign_id):
+def fetch_campaign_orders_range(api_token, campaign_id, date_from_str, date_to_str):
+    """Запрашивает заказы за один период (макс 30 дней)."""
     headers = {"Api-Key": api_token}
     rows = []
     page = 1
@@ -66,11 +67,11 @@ def fetch_campaign_orders(api_token, campaign_id):
         r = requests.get(
             f"https://api.partner.market.yandex.ru/v2/campaigns/{campaign_id}/orders",
             headers=headers,
-            params={"fromDate": DATE_FROM, "toDate": DATE_TO, "limit": 50, "page": page},
+            params={"fromDate": date_from_str, "toDate": date_to_str, "limit": 50, "page": page},
             timeout=30,
         )
         if r.status_code != 200:
-            print(f"Ошибка ЯМ кампания {campaign_id}: {r.status_code} — {r.text[:300]}")
+            print(f"  Ошибка кампания {campaign_id} {date_from_str}–{date_to_str}: {r.status_code} — {r.text[:200]}")
             break
 
         data = r.json()
@@ -113,6 +114,25 @@ def fetch_campaign_orders(api_token, campaign_id):
         if page >= pages_count:
             break
         page += 1
+
+    return rows
+
+
+def fetch_campaign_orders(api_token, campaign_id):
+    """Разбивает период на куски по 29 дней и объединяет результаты."""
+    start = datetime.strptime(DATE_FROM, "%Y-%m-%d")
+    end = datetime.strptime(DATE_TO, "%Y-%m-%d")
+    rows = []
+    chunk_start = start
+
+    while chunk_start < end:
+        chunk_end = min(chunk_start + timedelta(days=29), end)
+        df = chunk_start.strftime("%d-%m-%Y")
+        dt = chunk_end.strftime("%d-%m-%Y")
+        chunk_rows = fetch_campaign_orders_range(api_token, campaign_id, df, dt)
+        print(f"  {df} — {dt}: {len(chunk_rows)} строк")
+        rows.extend(chunk_rows)
+        chunk_start = chunk_end + timedelta(days=1)
 
     return rows
 
