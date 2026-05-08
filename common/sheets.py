@@ -77,6 +77,13 @@ def _write_sheet(spreadsheet, sheet_name, new_rows):
     return len(sorted_rows)
 
 
+def write_sheet(spreadsheet_id, sheet_name, new_rows):
+    client = get_sheets_client()
+    spreadsheet = client.open_by_key(spreadsheet_id)
+    count = _write_sheet(spreadsheet, sheet_name, new_rows)
+    print(f"Итого: {count} → '{sheet_name}'")
+
+
 def merge_and_write(spreadsheet_id, fbs_sheet_name, fbo_sheet_name, fbs_new, fbo_new):
     client = get_sheets_client()
     spreadsheet = client.open_by_key(spreadsheet_id)
