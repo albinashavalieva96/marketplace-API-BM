@@ -46,8 +46,13 @@ def fetch_orders(api_key):
         print(f"Ошибка WB: {r.status_code} — {r.text}")
         return []
 
+    data = r.json()
+    if data:
+        print("Поля первого заказа:", list(data[0].keys()))
+        print("Пример:", data[0])
+
     rows = []
-    for o in r.json():
+    for o in data:
         status = "Отменено" if o.get("isCancel") else "В работе"
         rows.append([
             o.get("gNumber", ""),
