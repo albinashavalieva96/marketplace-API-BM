@@ -56,7 +56,7 @@ def calc_spp(price, buyer_price):
 
 
 def fetch_campaign_orders(api_token, campaign_id, date_from, date_to):
-    headers = {"Authorization": f"Bearer {api_token}"}
+    headers = {"Api-Key": api_token}
     rows = []
     page = 1
 
