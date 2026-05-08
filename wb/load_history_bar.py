@@ -1,5 +1,6 @@
 import os
 import sys
+import time
 import requests
 from datetime import datetime, timezone
 
@@ -35,15 +36,23 @@ def fmt_spp(value):
 
 
 def fetch_orders(api_key):
-    r = requests.get(
-        "https://statistics-api.wildberries.ru/api/v1/supplier/orders",
-        headers={"Authorization": f"Bearer {api_key}"},
-        params={"dateFrom": DATE_FROM, "flag": 1},
-        timeout=120,
-    )
-
-    if r.status_code != 200:
-        print(f"Ошибка WB: {r.status_code} — {r.text}")
+    for attempt in range(5):
+        r = requests.get(
+            "https://statistics-api.wildberries.ru/api/v1/supplier/orders",
+            headers={"Authorization": f"Bearer {api_key}"},
+            params={"dateFrom": DATE_FROM, "flag": 1},
+            timeout=120,
+        )
+        if r.status_code == 429:
+            print(f"429 — лимит запросов, жду 65 сек (попытка {attempt + 1}/5)...")
+            time.sleep(65)
+            continue
+        if r.status_code != 200:
+            print(f"Ошибка WB: {r.status_code} — {r.text}")
+            return []
+        break
+    else:
+        print("Превышено число попыток")
         return []
 
     rows = []

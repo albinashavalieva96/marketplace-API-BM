@@ -1,5 +1,6 @@
 import os
 import sys
+import time
 import requests
 from datetime import datetime, timedelta, timezone
 
@@ -35,15 +36,23 @@ def fetch_orders(api_key):
     now = datetime.now(timezone.utc)
     date_from = (now - timedelta(days=DAYS_BACK)).strftime("%Y-%m-%dT00:00:00")
 
-    r = requests.get(
-        "https://statistics-api.wildberries.ru/api/v1/supplier/orders",
-        headers={"Authorization": f"Bearer {api_key}"},
-        params={"dateFrom": date_from, "flag": 0},
-        timeout=60,
-    )
-
-    if r.status_code != 200:
-        print(f"Ошибка WB: {r.status_code} — {r.text}")
+    for attempt in range(5):
+        r = requests.get(
+            "https://statistics-api.wildberries.ru/api/v1/supplier/orders",
+            headers={"Authorization": f"Bearer {api_key}"},
+            params={"dateFrom": date_from, "flag": 0},
+            timeout=60,
+        )
+        if r.status_code == 429:
+            print(f"429 — лимит запросов, жду 65 сек (попытка {attempt + 1}/5)...")
+            time.sleep(65)
+            continue
+        if r.status_code != 200:
+            print(f"Ошибка WB: {r.status_code} — {r.text}")
+            return []
+        break
+    else:
+        print("Превышено число попыток")
         return []
 
     rows = []
