@@ -85,13 +85,10 @@ def fetch_campaign_orders_range(api_token, campaign_id, date_from_str, date_to_s
         for order in orders:
             status = STATUS_MAP.get(order.get("status", ""), order.get("status", ""))
             delivery = order.get("delivery", {})
-            shipment = delivery.get("shipment", {})
+            shipments = delivery.get("shipments", [])
             region = delivery.get("region", {})
-            partner_type = delivery.get("deliveryPartnerType", "")
-            supply_type = "FBY" if partner_type == "YANDEX_MARKET" else "FBS"
-            warehouse_name = shipment.get("warehouseName", "")
             region_name = region.get("name", "")
-            shipment_date = shipment.get("date", "")
+            shipment_date = shipments[0].get("shipmentDate", "") if shipments else ""
 
             for item in order.get("items", []):
                 price = item.get("price", "")
@@ -106,7 +103,7 @@ def fetch_campaign_orders_range(api_token, campaign_id, date_from_str, date_to_s
                     item.get("offerId", ""),
                     fmt_num(price),
                     item.get("count", 0),
-                    warehouse_name,
+                    "",
                     region_name,
                     fmt_num(buyer_price),
                     calc_spp(price, buyer_price),
