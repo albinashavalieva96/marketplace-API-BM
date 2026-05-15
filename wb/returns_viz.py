@@ -80,6 +80,8 @@ def main():
 
     raw_returns = fetch_returns(api_key)
     print(f"Возвратов из API: {len(raw_returns)}")
+    if raw_returns:
+        print(f"Пример записи: {raw_returns[0]}")
 
     rows = []
     for ret in raw_returns:
