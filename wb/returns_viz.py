@@ -39,19 +39,27 @@ def fetch_orders_price(api_key, date_from):
 
 
 def fetch_returns(api_key):
-    headers = {"Authorization": f"Bearer {api_key}"}
-    candidates = [
-        ("GET", "https://marketplace-api.wildberries.ru/api/v3/returns", {"limit": 10}),
-        ("GET", "https://marketplace-api.wildberries.ru/api/v3/returns/company", {"limit": 10}),
-        ("GET", "https://marketplace-api.wildberries.ru/api/v4/returns", {"limit": 10}),
-        ("GET", "https://seller-analytics.wildberries.ru/api/v1/analytics/returns", {}),
+    headers = {"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"}
+    now = datetime.now(timezone.utc)
+    date_from = (now - timedelta(days=DAYS_BACK)).strftime("%Y-%m-%dT00:00:00Z")
+
+    get_candidates = [
+        ("https://marketplace-api.wildberries.ru/api/v3/returns/company/unredeemed", {"limit": 10}),
+        ("https://marketplace-api.wildberries.ru/api/v3/supply-requests", {"limit": 10}),
+        ("https://marketplace-api.wildberries.ru/api/v3/nm/returns", {"limit": 10}),
     ]
-    for method, url, params in candidates:
+    for url, params in get_candidates:
         r = requests.get(url, headers=headers, params=params, timeout=30)
-        print(f"{url} → {r.status_code}: {r.text[:200]}")
-        if r.status_code == 200:
-            print("Нашли рабочий эндпоинт!")
-            break
+        print(f"GET {url} → {r.status_code}: {r.text[:150]}")
+
+    post_candidates = [
+        ("https://marketplace-api.wildberries.ru/api/v3/returns", {"dateFrom": date_from, "limit": 10}),
+        ("https://statistics-api.wildberries.ru/api/v1/supplier/returns", {"dateFrom": date_from}),
+    ]
+    for url, body in post_candidates:
+        r = requests.post(url, headers=headers, json=body, timeout=30)
+        print(f"POST {url} → {r.status_code}: {r.text[:150]}")
+
     return []
 
 
