@@ -9,9 +9,9 @@ from datetime import datetime, timedelta, timezone
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from common.sheets import merge_and_write, DATA_HEADERS
 
-SPREADSHEET_ID = "1q7nDWrMge3XwlplH5LOBa0z6aryp7PcIkBIjclzorQ4"
-FBS_SHEET = "API - Заказы FBS"
-FBO_SHEET = "API - Заказы FBO"
+SPREADSHEET_ID = "1f5I82g5Nmy3AMn9s0AWta-Hc0HoHSAi9BWlSomzoppM"
+FBS_SHEET = "API - Ozon BM - Заказы FBS"
+FBO_SHEET = "API - Ozon BM - Заказы FBO"
 DAYS_BACK = 30
 
 STATUS_MAP = {
