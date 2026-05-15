@@ -9,9 +9,9 @@ from datetime import datetime, timedelta, timezone
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from common.sheets import merge_and_write, DATA_HEADERS
 
-SPREADSHEET_ID = "1JuRnPxxoWAYCD9IvwXYFLykzLgxXBlNzN9lUE0x6qRw"
-FBS_SHEET = "API - Заказы FBS"
-FBO_SHEET = "API - Заказы FBO"
+SPREADSHEET_ID = "1f5I82g5Nmy3AMn9s0AWta-Hc0HoHSAi9BWlSomzoppM"
+FBS_SHEET = "API - Ozon CF - Заказы FBS"
+FBO_SHEET = "API - Ozon CF - Заказы FBO"
 
 # Период для исторической загрузки
 DATE_FROM = "2026-03-01T00:00:00.000Z"
