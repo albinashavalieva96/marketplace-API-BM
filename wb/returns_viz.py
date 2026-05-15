@@ -39,31 +39,20 @@ def fetch_orders_price(api_key, date_from):
 
 
 def fetch_returns(api_key):
-    rows = []
-    limit = 1000
-    next_id = 0
-
-    while True:
-        r = requests.get(
-            "https://marketplace-api.wildberries.ru/api/v3/returns",
-            headers={"Authorization": f"Bearer {api_key}"},
-            params={"limit": limit, "next": next_id},
-            timeout=60,
-        )
-        if r.status_code != 200:
-            print(f"Ошибка возвратов: {r.status_code} — {r.text[:300]}")
+    headers = {"Authorization": f"Bearer {api_key}"}
+    candidates = [
+        ("GET", "https://marketplace-api.wildberries.ru/api/v3/returns", {"limit": 10}),
+        ("GET", "https://marketplace-api.wildberries.ru/api/v3/returns/company", {"limit": 10}),
+        ("GET", "https://marketplace-api.wildberries.ru/api/v4/returns", {"limit": 10}),
+        ("GET", "https://seller-analytics.wildberries.ru/api/v1/analytics/returns", {}),
+    ]
+    for method, url, params in candidates:
+        r = requests.get(url, headers=headers, params=params, timeout=30)
+        print(f"{url} → {r.status_code}: {r.text[:200]}")
+        if r.status_code == 200:
+            print("Нашли рабочий эндпоинт!")
             break
-
-        data = r.json()
-        returns = data.get("returns", [])
-        rows.extend(returns)
-
-        cursor = data.get("cursor", {})
-        if len(returns) < limit or not cursor.get("id"):
-            break
-        next_id = cursor.get("id", 0)
-
-    return rows
+    return []
 
 
 def main():
