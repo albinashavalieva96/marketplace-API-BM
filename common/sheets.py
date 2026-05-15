@@ -9,6 +9,21 @@ SCOPES = [
     "https://www.googleapis.com/auth/drive",
 ]
 
+RETURNS_HEADERS = [
+    "Дата заказа",
+    "Артикул WB",
+    "Статус",
+    "Причина",
+    "Srid",
+    "Забрали",
+    "Тип",
+    "Номер сборочного задания",
+    "Сумма",
+]
+
+IDX_RETURNS_KEY  = 4  # Srid
+IDX_RETURNS_DATE = 0  # Дата заказа
+
 DATA_HEADERS = [
     "Номер заказа",
     "Номер отправления",
@@ -76,6 +91,53 @@ def _write_sheet(spreadsheet, sheet_name, new_rows):
     worksheet.update("A1", all_rows)
 
     return len(sorted_rows)
+
+
+def _write_returns_sheet(spreadsheet, sheet_name, new_rows):
+    try:
+        worksheet = spreadsheet.worksheet(sheet_name)
+    except gspread.WorksheetNotFound:
+        worksheet = spreadsheet.add_worksheet(
+            title=sheet_name, rows=1000, cols=len(RETURNS_HEADERS) + 1
+        )
+
+    existing = worksheet.get_all_values()
+    data_dict = {}
+
+    for row in existing[1:]:
+        row = list(row) + [""] * 20
+        key = row[SHEET_DATA_START + IDX_RETURNS_KEY]
+        if key:
+            data_dict[key] = row[SHEET_DATA_START:SHEET_DATA_START + len(RETURNS_HEADERS)]
+
+    for row in new_rows:
+        data_dict[row[IDX_RETURNS_KEY]] = row
+
+    sorted_rows = sorted(
+        data_dict.values(),
+        key=lambda r: r[IDX_RETURNS_DATE] if len(r) > IDX_RETURNS_DATE else "",
+    )
+
+    now = datetime.now(timezone.utc).astimezone(timezone(timedelta(hours=3)))
+    service = ["Обновлен:", now.strftime("%Y-%m-%d"), now.strftime("%H:%M")]
+
+    header_row = [""] + RETURNS_HEADERS
+    all_rows = [header_row]
+    for i, data_row in enumerate(sorted_rows):
+        service_cell = service[i] if i < len(service) else ""
+        all_rows.append([service_cell] + list(data_row))
+
+    worksheet.resize(rows=max(len(all_rows), 1), cols=len(RETURNS_HEADERS) + 1)
+    worksheet.update("A1", all_rows)
+
+    return len(sorted_rows)
+
+
+def write_returns_sheet(spreadsheet_id, sheet_name, new_rows):
+    client = get_sheets_client()
+    spreadsheet = client.open_by_key(spreadsheet_id)
+    count = _write_returns_sheet(spreadsheet, sheet_name, new_rows)
+    print(f"Итого: {count} → '{sheet_name}'")
 
 
 def write_sheet(spreadsheet_id, sheet_name, new_rows):
