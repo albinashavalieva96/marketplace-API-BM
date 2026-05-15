@@ -104,6 +104,7 @@ def fetch_fbs_orders(client_id, api_key):
                     financial.get("cluster_to", ""),
                     fmt_num(customer_price),
                     calc_spp(price, customer_price),
+                    "FBS",
                 ])
 
         if len(postings) < limit:
@@ -254,6 +255,7 @@ def fetch_fbo_orders(client_id, api_key):
             cluster_to,
             fmt_num(customer_price),
             calc_spp(price, customer_price),
+            "FBO",
         ])
 
     return rows
