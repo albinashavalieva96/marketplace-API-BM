@@ -28,19 +28,37 @@ def fmt_num(value, decimals=2):
 
 def probe_endpoints(client_id, api_key):
     headers = {"Client-Id": client_id, "Api-Key": api_key, "Content-Type": "application/json"}
-    post_candidates = [
-        ("https://api-seller.ozon.ru/v4/returns/company/fbs", {"filter": {"status": ""}, "limit": 10, "offset": 0}),
-        ("https://api-seller.ozon.ru/v1/returns/fbs", {"filter": {}, "limit": 10, "offset": 0}),
-        ("https://api-seller.ozon.ru/v1/returns/fbo", {"filter": {}, "limit": 10, "offset": 0}),
-        ("https://api-seller.ozon.ru/v1/returns/unredeemed", {"limit": 10, "offset": 0}),
-        ("https://api-seller.ozon.ru/v1/returns/fbs/unredeemed", {"limit": 10, "offset": 0}),
-        ("https://api-seller.ozon.ru/v2/posting/fbs/list", {"filter": {"status": "returned"}, "limit": 10, "offset": 0}),
-        ("https://api-seller.ozon.ru/v3/posting/fbs/list", {"filter": {"status": "returned"}, "limit": 10, "offset": 0, "with": {}}),
-        ("https://api-seller.ozon.ru/v1/supply-order/return", {"limit": 10, "offset": 0}),
-    ]
-    for url, body in post_candidates:
-        r = requests.post(url, headers=headers, json=body, timeout=30)
-        print(f"POST {url} → {r.status_code}: {r.text[:120]}")
+    from datetime import timedelta
+    now = datetime.now(timezone.utc)
+    date_from = (now - timedelta(days=90)).strftime("%Y-%m-%dT00:00:00.000Z")
+    date_to = now.strftime("%Y-%m-%dT23:59:59.999Z")
+
+    base_body = {
+        "dir": "DESC",
+        "filter": {"since": date_from, "to": date_to, "status": ""},
+        "limit": 5,
+        "offset": 0,
+        "with": {"analytics_data": False, "financial_data": False},
+    }
+
+    # Пробуем разные статусы возвратов
+    for status in ["returned", "return_in_transit", "awaiting_return", "client_returned", "cancelled_from_customer", ""]:
+        body = dict(base_body)
+        body["filter"] = {"since": date_from, "to": date_to, "status": status}
+        r = requests.post("https://api-seller.ozon.ru/v3/posting/fbs/list", headers=headers, json=body, timeout=30)
+        postings = r.json().get("result", {}).get("postings", []) if r.status_code == 200 else []
+        print(f"status='{status}' → {r.status_code}, postings={len(postings)}")
+        if postings:
+            print(f"  пример статус: {postings[0].get('status')}")
+
+    # Также пробуем новый путь возвратов
+    for url in [
+        "https://api-seller.ozon.ru/v1/return/list",
+        "https://api-seller.ozon.ru/v1/return/fbs/list",
+        "https://api-seller.ozon.ru/v2/return/list",
+    ]:
+        r = requests.post(url, headers=headers, json={"limit": 10, "offset": 0}, timeout=30)
+        print(f"POST {url} → {r.status_code}: {r.text[:100]}")
 
 
 def fetch_fbs_returns(client_id, api_key):
