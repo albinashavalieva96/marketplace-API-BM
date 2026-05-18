@@ -28,16 +28,27 @@ def fmt_num(value, decimals=2):
 
 def probe_endpoints(client_id, api_key):
     headers = {"Client-Id": client_id, "Api-Key": api_key, "Content-Type": "application/json"}
-    candidates = [
-        ("POST", "https://api-seller.ozon.ru/v4/returns/company/fbs", {"filter": {}, "limit": 10, "offset": 0}),
-        ("POST", "https://api-seller.ozon.ru/v5/returns/company/fbs", {"filter": {}, "limit": 10, "offset": 0}),
-        ("POST", "https://api-seller.ozon.ru/v3/returns/company/fbo", {"filter": {}, "limit": 10, "offset": 0}),
-        ("POST", "https://api-seller.ozon.ru/v4/returns/company/fbo", {"filter": {}, "limit": 10, "offset": 0}),
-        ("POST", "https://api-seller.ozon.ru/v1/returns/company", {"filter": {}, "limit": 10, "offset": 0}),
+    post_candidates = [
+        ("https://api-seller.ozon.ru/v1/returns", {"filter": {}, "limit": 10, "offset": 0}),
+        ("https://api-seller.ozon.ru/v2/returns", {"filter": {}, "limit": 10, "offset": 0}),
+        ("https://api-seller.ozon.ru/v1/returns/company/fbs", {"filter": {}, "limit": 10, "offset": 0}),
+        ("https://api-seller.ozon.ru/v2/returns/company/fbs", {"filter": {}, "limit": 10, "offset": 0}),
+        ("https://api-seller.ozon.ru/v1/posting/fbs/returns", {"filter": {}, "limit": 10, "offset": 0}),
+        ("https://api-seller.ozon.ru/v3/posting/returns", {"filter": {}, "limit": 10, "offset": 0}),
+        ("https://api-seller.ozon.ru/v1/finance/returns", {"filter": {}, "limit": 10, "offset": 0}),
     ]
-    for method, url, body in candidates:
+    for url, body in post_candidates:
         r = requests.post(url, headers=headers, json=body, timeout=30)
-        print(f"{url} → {r.status_code}: {r.text[:150]}")
+        print(f"POST {url} → {r.status_code}: {r.text[:100]}")
+
+    get_candidates = [
+        "https://api-seller.ozon.ru/v1/returns",
+        "https://api-seller.ozon.ru/v2/returns",
+        "https://api-seller.ozon.ru/v1/returns/company/fbs",
+    ]
+    for url in get_candidates:
+        r = requests.get(url, headers=headers, timeout=30)
+        print(f"GET  {url} → {r.status_code}: {r.text[:100]}")
 
 
 def fetch_fbs_returns(client_id, api_key):
