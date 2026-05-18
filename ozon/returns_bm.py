@@ -44,6 +44,8 @@ def fetch_fbs_returns(client_id, api_key):
             break
 
         returns = r.json().get("returns", [])
+        if returns and offset == 0:
+            print(f"FBS пример: {returns[0]}")
         for ret in returns:
             if ret.get("status", "") in DONE_STATUSES:
                 continue
