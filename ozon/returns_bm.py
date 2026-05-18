@@ -26,82 +26,26 @@ def fmt_num(value, decimals=2):
         return ""
 
 
-def fetch_fbs_returns(client_id, api_key):
+def probe_endpoints(client_id, api_key):
     headers = {"Client-Id": client_id, "Api-Key": api_key, "Content-Type": "application/json"}
-    rows = []
-    offset = 0
-    limit = 1000
+    candidates = [
+        ("POST", "https://api-seller.ozon.ru/v4/returns/company/fbs", {"filter": {}, "limit": 10, "offset": 0}),
+        ("POST", "https://api-seller.ozon.ru/v5/returns/company/fbs", {"filter": {}, "limit": 10, "offset": 0}),
+        ("POST", "https://api-seller.ozon.ru/v3/returns/company/fbo", {"filter": {}, "limit": 10, "offset": 0}),
+        ("POST", "https://api-seller.ozon.ru/v4/returns/company/fbo", {"filter": {}, "limit": 10, "offset": 0}),
+        ("POST", "https://api-seller.ozon.ru/v1/returns/company", {"filter": {}, "limit": 10, "offset": 0}),
+    ]
+    for method, url, body in candidates:
+        r = requests.post(url, headers=headers, json=body, timeout=30)
+        print(f"{url} → {r.status_code}: {r.text[:150]}")
 
-    while True:
-        r = requests.post(
-            "https://api-seller.ozon.ru/v3/returns/company/fbs",
-            headers=headers,
-            json={"filter": {"status": ""}, "limit": limit, "offset": offset},
-            timeout=30,
-        )
-        if r.status_code != 200:
-            print(f"Ошибка FBS возвраты: {r.status_code} — {r.text[:200]}")
-            break
 
-        returns = r.json().get("returns", [])
-        if returns and offset == 0:
-            print(f"FBS пример: {returns[0]}")
-        for ret in returns:
-            if ret.get("status", "") in DONE_STATUSES:
-                continue
-            rows.append([
-                fmt_dt(ret.get("return_date", "")),
-                ret.get("offer_id", "") or str(ret.get("sku", "")),
-                ret.get("status_name", ret.get("status", "")),
-                ret.get("return_reason_name", ""),
-                ret.get("posting_number", ""),
-                "FBS",
-                fmt_num(ret.get("price", "")),
-            ])
-
-        if len(returns) < limit:
-            break
-        offset += limit
-
-    return rows
+def fetch_fbs_returns(client_id, api_key):
+    return []
 
 
 def fetch_fbo_returns(client_id, api_key):
-    headers = {"Client-Id": client_id, "Api-Key": api_key, "Content-Type": "application/json"}
-    rows = []
-    offset = 0
-    limit = 1000
-
-    while True:
-        r = requests.post(
-            "https://api-seller.ozon.ru/v2/returns/company/fbo",
-            headers=headers,
-            json={"filter": {}, "limit": limit, "offset": offset},
-            timeout=30,
-        )
-        if r.status_code != 200:
-            print(f"Ошибка FBO возвраты: {r.status_code} — {r.text[:200]}")
-            break
-
-        returns = r.json().get("returns", [])
-        for ret in returns:
-            if ret.get("status", "") in DONE_STATUSES:
-                continue
-            rows.append([
-                fmt_dt(ret.get("return_date", "")),
-                ret.get("offer_id", "") or str(ret.get("sku", "")),
-                ret.get("status_name", ret.get("status", "")),
-                ret.get("return_reason_name", ""),
-                ret.get("posting_number", ""),
-                "FBO",
-                fmt_num(ret.get("price", "")),
-            ])
-
-        if len(returns) < limit:
-            break
-        offset += limit
-
-    return rows
+    return []
 
 
 def main():
@@ -109,6 +53,8 @@ def main():
     api_key = os.environ["OZON_BM_API_KEY"]
 
     print(f"Запуск: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+
+    probe_endpoints(client_id, api_key)
 
     fbs_rows = fetch_fbs_returns(client_id, api_key)
     print(f"FBS возвраты в пути: {len(fbs_rows)}")
