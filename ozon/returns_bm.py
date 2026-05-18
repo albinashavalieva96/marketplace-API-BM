@@ -29,26 +29,18 @@ def fmt_num(value, decimals=2):
 def probe_endpoints(client_id, api_key):
     headers = {"Client-Id": client_id, "Api-Key": api_key, "Content-Type": "application/json"}
     post_candidates = [
-        ("https://api-seller.ozon.ru/v1/returns", {"filter": {}, "limit": 10, "offset": 0}),
-        ("https://api-seller.ozon.ru/v2/returns", {"filter": {}, "limit": 10, "offset": 0}),
-        ("https://api-seller.ozon.ru/v1/returns/company/fbs", {"filter": {}, "limit": 10, "offset": 0}),
-        ("https://api-seller.ozon.ru/v2/returns/company/fbs", {"filter": {}, "limit": 10, "offset": 0}),
-        ("https://api-seller.ozon.ru/v1/posting/fbs/returns", {"filter": {}, "limit": 10, "offset": 0}),
-        ("https://api-seller.ozon.ru/v3/posting/returns", {"filter": {}, "limit": 10, "offset": 0}),
-        ("https://api-seller.ozon.ru/v1/finance/returns", {"filter": {}, "limit": 10, "offset": 0}),
+        ("https://api-seller.ozon.ru/v4/returns/company/fbs", {"filter": {"status": ""}, "limit": 10, "offset": 0}),
+        ("https://api-seller.ozon.ru/v1/returns/fbs", {"filter": {}, "limit": 10, "offset": 0}),
+        ("https://api-seller.ozon.ru/v1/returns/fbo", {"filter": {}, "limit": 10, "offset": 0}),
+        ("https://api-seller.ozon.ru/v1/returns/unredeemed", {"limit": 10, "offset": 0}),
+        ("https://api-seller.ozon.ru/v1/returns/fbs/unredeemed", {"limit": 10, "offset": 0}),
+        ("https://api-seller.ozon.ru/v2/posting/fbs/list", {"filter": {"status": "returned"}, "limit": 10, "offset": 0}),
+        ("https://api-seller.ozon.ru/v3/posting/fbs/list", {"filter": {"status": "returned"}, "limit": 10, "offset": 0, "with": {}}),
+        ("https://api-seller.ozon.ru/v1/supply-order/return", {"limit": 10, "offset": 0}),
     ]
     for url, body in post_candidates:
         r = requests.post(url, headers=headers, json=body, timeout=30)
-        print(f"POST {url} → {r.status_code}: {r.text[:100]}")
-
-    get_candidates = [
-        "https://api-seller.ozon.ru/v1/returns",
-        "https://api-seller.ozon.ru/v2/returns",
-        "https://api-seller.ozon.ru/v1/returns/company/fbs",
-    ]
-    for url in get_candidates:
-        r = requests.get(url, headers=headers, timeout=30)
-        print(f"GET  {url} → {r.status_code}: {r.text[:100]}")
+        print(f"POST {url} → {r.status_code}: {r.text[:120]}")
 
 
 def fetch_fbs_returns(client_id, api_key):
