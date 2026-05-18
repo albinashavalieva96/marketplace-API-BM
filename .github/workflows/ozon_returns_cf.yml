@@ -1,0 +1,24 @@
+name: Ozon CF — Возвраты
+
+on:
+  schedule:
+    - cron: '*/30 * * * *'
+  workflow_dispatch:
+
+jobs:
+  update-ozon-cf-returns:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: pip install -r requirements.txt
+      - name: Run Ozon CF returns script
+        env:
+          OZON_CF_CLIENT_ID: ${{ secrets.OZON_CF_CLIENT_ID }}
+          OZON_CF_API_KEY: ${{ secrets.OZON_CF_API_KEY }}
+          GOOGLE_CREDENTIALS: ${{ secrets.GOOGLE_CREDENTIALS }}
+        run: python ozon/returns_cf.py
