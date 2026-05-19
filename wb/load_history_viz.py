@@ -10,8 +10,8 @@ SPREADSHEET_ID = "1f5I82g5Nmy3AMn9s0AWta-Hc0HoHSAi9BWlSomzoppM"
 SHEET_NAME = "API - WB Виз - Заказы"
 
 # Период для исторической загрузки
-DATE_FROM = "2025-06-01T00:00:00"
-DATE_TO   = "2025-09-01T00:00:00"
+DATE_FROM = "2025-01-01T00:00:00"
+DATE_TO   = "2099-01-01T00:00:00"
 
 
 def fmt_dt(value):
