@@ -55,12 +55,8 @@ def fetch_orders(api_key):
         print("Превышено число попыток")
         return []
 
-    data = r.json()
-    wh_types = set(o.get("warehouseType", "") for o in data)
-    print(f"Уникальные warehouseType: {wh_types}")
-
     rows = []
-    for o in data:
+    for o in r.json():
         status = "Отменено" if o.get("isCancel") else "В работе"
         supply_type = "FBO" if o.get("warehouseType") == "Склад WB" else "FBS"
         rows.append([
