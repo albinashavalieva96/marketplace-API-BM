@@ -64,7 +64,7 @@ def fetch_orders(api_key):
             status,
             o.get("supplierArticle", ""),
             fmt_num(o.get("totalPrice", "")),
-            o.get("quantity", 0),
+            o.get("quantity") or 1,
             o.get("warehouseName", ""),
             o.get("oblastOkrugName", ""),
             fmt_num(o.get("finishedPrice", "")),
