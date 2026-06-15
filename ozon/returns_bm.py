@@ -31,51 +31,32 @@ def fetch_returns(client_id, api_key):
     date_from = (now - timedelta(days=DAYS_BACK)).strftime("%Y-%m-%dT00:00:00.000Z")
     date_to = now.strftime("%Y-%m-%dT23:59:59.999Z")
     rows = []
-    offset = 0
-    limit = 100
+    limit = 1000  # один запрос — последние 1000 возвратов
 
-    while True:
-        r = requests.post(
-            "https://api-seller.ozon.ru/v1/returns/list",
-            headers=headers,
-            json={
-                "limit": limit,
-                "offset": offset,
-                "filter": {
-                    "return_date": {"from": date_from, "to": date_to},
-                },
-            },
-            timeout=30,
-        )
-        if r.status_code != 200:
-            print(f"  Ошибка returns/list: {r.status_code} — {r.text[:200]}")
-            break
+    r = requests.post(
+        "https://api-seller.ozon.ru/v1/returns/list",
+        headers=headers,
+        json={"limit": limit, "offset": 0},
+        timeout=60,
+    )
+    if r.status_code != 200:
+        print(f"  Ошибка returns/list: {r.status_code} — {r.text[:200]}")
+        return rows
 
-        data = r.json()
-        returns = data.get("returns", [])
-
-        for ret in returns:
-            product = ret.get("product") or {}
-            logistic = ret.get("logistic") or {}
-            visual = ret.get("visual") or {}
-            status_info = visual.get("status") or {}
-
-            schema = ret.get("schema", "")
-            status_display = status_info.get("display_name", "")
-
-            rows.append([
-                fmt_dt(logistic.get("return_date", "")),
-                product.get("offer_id", "") or str(product.get("sku", "")),
-                status_display,
-                ret.get("return_reason_name", ""),
-                ret.get("posting_number", ""),
-                f"{schema} возврат",
-                fmt_num((product.get("price") or {}).get("price", "")),
-            ])
-
-        if not data.get("has_next"):
-            break
-        offset += limit
+    for ret in r.json().get("returns", []):
+        product = ret.get("product") or {}
+        logistic = ret.get("logistic") or {}
+        visual = ret.get("visual") or {}
+        status_display = (visual.get("status") or {}).get("display_name", "")
+        rows.append([
+            fmt_dt(logistic.get("return_date", "")),
+            product.get("offer_id", "") or str(product.get("sku", "")),
+            status_display,
+            ret.get("return_reason_name", ""),
+            ret.get("posting_number", ""),
+            f"{ret.get('schema', '')} возврат",
+            fmt_num((product.get("price") or {}).get("price", "")),
+        ])
 
     return rows
 
