@@ -25,8 +25,11 @@ def fmt_num(value):
 
 
 def fetch_returns(client_id, api_key):
-    """Все возвраты через /v1/returns/list."""
+    """Возвраты через /v1/returns/list за последние DAYS_BACK дней."""
     headers = {"Client-Id": client_id, "Api-Key": api_key, "Content-Type": "application/json"}
+    now = datetime.now(timezone.utc)
+    date_from = (now - timedelta(days=DAYS_BACK)).strftime("%Y-%m-%dT00:00:00.000Z")
+    date_to = now.strftime("%Y-%m-%dT23:59:59.999Z")
     rows = []
     offset = 0
     limit = 100
@@ -35,7 +38,13 @@ def fetch_returns(client_id, api_key):
         r = requests.post(
             "https://api-seller.ozon.ru/v1/returns/list",
             headers=headers,
-            json={"limit": limit, "offset": offset},
+            json={
+                "limit": limit,
+                "offset": offset,
+                "filter": {
+                    "return_date": {"from": date_from, "to": date_to},
+                },
+            },
             timeout=30,
         )
         if r.status_code != 200:
