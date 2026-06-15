@@ -2,6 +2,7 @@ import os
 import sys
 import requests
 from datetime import datetime, timedelta, timezone
+from collections import defaultdict
 
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from common.sheets import get_sheets_client
@@ -25,46 +26,38 @@ def fmt_money(value):
         return "0,00"
 
 
-def fetch_pending_total(client_id, api_key):
-    """Возвращает общую сумму, ожидающую выплаты."""
+def fetch_realization(client_id, api_key, year, month):
+    """Возвращает (header, rows) отчёта реализации за месяц."""
     r = requests.post(
-        "https://api-seller.ozon.ru/v1/finance/treasury/totals",
+        "https://api-seller.ozon.ru/v2/finance/realization",
         headers=_headers(client_id, api_key),
-        json={},
-        timeout=30,
+        json={"year": year, "month": month},
+        timeout=60,
     )
-    print(f"treasury/totals HTTP {r.status_code}")
+    print(f"realization {year}-{month:02d}: HTTP {r.status_code}")
     if r.status_code != 200:
-        print(f"  Ошибка: {r.text[:300]}")
-        return 0
+        print(f"  {r.text[:200]}")
+        return None, []
     result = r.json().get("result", {})
-    print(f"  Ответ: {result}")
-    return (
-        result.get("awaiting_payment_amount")
-        or result.get("payout")
-        or result.get("total")
-        or 0
-    )
+    return result.get("header", {}), result.get("rows", [])
 
 
-def fetch_realization(client_id, api_key, year_month):
-    """Возвращает строки отчёта реализации за месяц YYYY-MM."""
-    r = requests.post(
-        "https://api-seller.ozon.ru/v3/finance/realization",
-        headers=_headers(client_id, api_key),
-        json={"date": year_month},
-        timeout=30,
-    )
-    print(f"realization {year_month}: HTTP {r.status_code}")
-    if r.status_code != 200:
-        print(f"  Ошибка: {r.text[:300]}")
-        return []
-    result = r.json().get("result", {})
-    rows = result.get("rows", [])
-    print(f"  Строк: {len(rows)}")
-    if rows:
-        print(f"  Пример строки: {rows[0]}")
-    return rows
+def calc_row_payout(row):
+    """
+    Расчёт чистой выплаты за одну строку реализации:
+      total     = выручка после вычета комиссии Ozon (seller_price × (1 - commission_ratio))
+      amount    = фактическая плата за логистику
+      bonus     = компенсация логистики от Ozon
+      net       = total - amount + bonus
+    """
+    dc = row.get("delivery_commission") or {}
+    total = float(dc.get("total", 0) or 0)
+    amount = float(dc.get("amount", 0) or 0)
+    bonus = float(dc.get("bonus", 0) or 0)
+    # Для возврата используем return_commission, если есть
+    rc = row.get("return_commission") or {}
+    return_total = float(rc.get("total", 0) or 0)
+    return total - amount + bonus + return_total
 
 
 def main():
@@ -75,45 +68,72 @@ def main():
     now_msk = now_utc.astimezone(timezone(timedelta(hours=3)))
     print(f"Запуск: {now_msk.strftime('%Y-%m-%d %H:%M:%S')}")
 
-    # 1. Общая сумма к выплате
-    total_pending = fetch_pending_total(client_id, api_key)
-    print(f"Итого к выплате: {total_pending}")
+    # Пробуем текущий и предыдущий месяц
+    months_to_try = [
+        (now_utc.year, now_utc.month),
+        ((now_utc.replace(day=1) - timedelta(days=1)).year,
+         (now_utc.replace(day=1) - timedelta(days=1)).month),
+    ]
 
-    # 2. По артикулам — текущий и предыдущий месяц
-    current_month = now_utc.strftime("%Y-%m")
-    prev_month = (now_utc.replace(day=1) - timedelta(days=1)).strftime("%Y-%m")
+    all_rows = []
+    period_label = ""
 
-    article_totals = {}
-    for month in [current_month, prev_month]:
-        rows = fetch_realization(client_id, api_key, month)
-        for row in rows:
-            offer_id = row.get("offer_id", "")
-            payout = float(row.get("payout", row.get("delivery_amount", 0)) or 0)
-            if offer_id and payout:
-                article_totals[offer_id] = article_totals.get(offer_id, 0) + payout
+    for year, month in months_to_try:
+        header, rows = fetch_realization(client_id, api_key, year, month)
+        if rows:
+            print(f"  Строк: {len(rows)}")
+            start = (header.get("start_date") or "")[:10]
+            stop = (header.get("stop_date") or "")[:10]
+            period_label = f"{start} – {stop}" if start and stop else f"{year}-{month:02d}"
+            all_rows = rows
+            break
+        else:
+            print(f"  Акт за {year}-{month:02d} ещё не сформирован, пробуем предыдущий")
 
-    # 3. Запись в Google Sheets
+    if not all_rows:
+        print("Нет данных реализации")
+        return
+
+    # Группировка по артикулу
+    article_payout = defaultdict(float)
+    article_name = {}
+
+    for row in all_rows:
+        item = row.get("item") or {}
+        offer_id = item.get("offer_id", "")
+        if not offer_id:
+            continue
+        net = calc_row_payout(row)
+        article_payout[offer_id] += net
+        if offer_id not in article_name:
+            article_name[offer_id] = item.get("name", "")[:60]
+
+    total = sum(article_payout.values())
+    print(f"Артикулов: {len(article_payout)}, итого: {round(total, 2)} ₽")
+
+    # Запись в Google Sheets
     sheets_client = get_sheets_client()
     spreadsheet = sheets_client.open_by_key(SPREADSHEET_ID)
 
     try:
         ws = spreadsheet.worksheet(SHEET_NAME)
     except Exception:
-        ws = spreadsheet.add_worksheet(title=SHEET_NAME, rows=2000, cols=5)
+        ws = spreadsheet.add_worksheet(title=SHEET_NAME, rows=5000, cols=5)
 
-    period_label = f"{prev_month} / {current_month}"
     sheet_rows = [
-        [f"Обновлен: {now_msk.strftime('%Y-%m-%d %H:%M')}", "", ""],
-        ["ИТОГО К ВЫПЛАТЕ:", fmt_money(total_pending) + " ₽", ""],
-        ["", "", ""],
-        ["Артикул", "Сумма к выплате", "Период"],
+        [f"Обновлен: {now_msk.strftime('%Y-%m-%d %H:%M')}", "", "", ""],
+        ["Период реализации:", period_label, "", ""],
+        ["ИТОГО К ВЫПЛАТЕ:", fmt_money(total) + " ₽", "", ""],
+        ["", "", "", ""],
+        ["Артикул", "Название", "Сумма к выплате", ""],
     ]
-    for offer_id, total in sorted(article_totals.items(), key=lambda x: x[1], reverse=True):
-        sheet_rows.append([offer_id, fmt_money(total) + " ₽", period_label])
+
+    for offer_id, payout in sorted(article_payout.items(), key=lambda x: x[1], reverse=True):
+        sheet_rows.append([offer_id, article_name.get(offer_id, ""), fmt_money(payout) + " ₽", ""])
 
     ws.clear()
-    ws.update("A1", sheet_rows)
-    print(f"Готово! Записано {len(article_totals)} артикулов → '{SHEET_NAME}'")
+    ws.update(values=sheet_rows, range_name="A1")
+    print(f"Готово! Записано {len(article_payout)} артикулов → '{SHEET_NAME}'")
 
 
 if __name__ == "__main__":
