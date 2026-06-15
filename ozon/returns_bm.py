@@ -10,6 +10,9 @@ SPREADSHEET_ID = "1f5I82g5Nmy3AMn9s0AWta-Hc0HoHSAi9BWlSomzoppM"
 SHEET_NAME = "API - Ozon BM - Возвраты и отмены"
 DAYS_BACK = 90
 
+# Завершённые статусы — исключаем из отчёта
+DONE_STATUSES = {"ReceivedBySeller", "Cancelled", "CancelledBySeller"}
+
 
 def fmt_dt(value):
     if not value:
@@ -47,7 +50,11 @@ def fetch_returns(client_id, api_key):
         product = ret.get("product") or {}
         logistic = ret.get("logistic") or {}
         visual = ret.get("visual") or {}
-        status_display = (visual.get("status") or {}).get("display_name", "")
+        status_info = visual.get("status") or {}
+        sys_name = status_info.get("sys_name", "")
+        if sys_name in DONE_STATUSES:
+            continue
+        status_display = status_info.get("display_name", "")
         rows.append([
             fmt_dt(logistic.get("return_date", "")),
             product.get("offer_id", "") or str(product.get("sku", "")),
