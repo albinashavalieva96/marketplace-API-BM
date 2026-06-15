@@ -14,7 +14,7 @@ headers = {
 
 now = datetime.now(timezone.utc)
 month = now.strftime("%Y-%m")
-date_from = (now - timedelta(days=60)).strftime("%Y-%m-%dT00:00:00.000Z")
+date_from = (now - timedelta(days=30)).strftime("%Y-%m-%dT00:00:00.000Z")
 date_to = now.strftime("%Y-%m-%dT23:59:59.999Z")
 
 
@@ -61,23 +61,18 @@ try_endpoint(
     },
 )
 
-# Реализация
+# Реализация — v2 ждёт year+month как числа
 try_endpoint(
-    "v1/finance/realization",
-    "https://api-seller.ozon.ru/v1/finance/realization",
-    {"date": month},
-)
-
-try_endpoint(
-    "v2/finance/realization",
+    "v2/finance/realization (year+month)",
     "https://api-seller.ozon.ru/v2/finance/realization",
-    {"date": month},
+    {"year": now.year, "month": now.month},
 )
 
 try_endpoint(
-    "v3/finance/realization",
-    "https://api-seller.ozon.ru/v3/finance/realization",
-    {"date": month},
+    "v2/finance/realization (prev month)",
+    "https://api-seller.ozon.ru/v2/finance/realization",
+    {"year": (now.replace(day=1) - timedelta(days=1)).year,
+     "month": (now.replace(day=1) - timedelta(days=1)).month},
 )
 
 # Выплаты / treasury
