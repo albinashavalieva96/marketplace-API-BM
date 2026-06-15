@@ -16,26 +16,24 @@ now = datetime.now(timezone.utc)
 date_from = (now - timedelta(days=90)).strftime("%Y-%m-%dT00:00:00.000Z")
 date_to = now.strftime("%Y-%m-%dT23:59:59.999Z")
 
-# ── 1. Возвраты через специальный эндпоинт ───────────────────────────────────
-print("=== /v3/returns/company/fbs ===")
-r = requests.post(
-    "https://api-seller.ozon.ru/v3/returns/company/fbs",
-    headers=headers,
-    json={"filter": {}, "limit": 10, "offset": 0},
-    timeout=30,
-)
-print(f"HTTP: {r.status_code}")
-print(r.text[:500])
-
-print("\n=== /v2/returns/company/fbo ===")
-r = requests.post(
-    "https://api-seller.ozon.ru/v2/returns/company/fbo",
-    headers=headers,
-    json={"filter": {}, "limit": 10, "offset": 0},
-    timeout=30,
-)
-print(f"HTTP: {r.status_code}")
-print(r.text[:500])
+# ── 1. Перебор версий возвратных эндпоинтов ──────────────────────────────────
+print("=== Поиск актуальных эндпоинтов возвратов ===")
+candidates = [
+    ("POST", "https://api-seller.ozon.ru/v4/returns/company/fbs", {"filter": {}, "limit": 5, "offset": 0}),
+    ("POST", "https://api-seller.ozon.ru/v5/returns/company/fbs", {"filter": {}, "limit": 5, "offset": 0}),
+    ("POST", "https://api-seller.ozon.ru/v3/returns/company/fbo", {"filter": {}, "limit": 5, "offset": 0}),
+    ("POST", "https://api-seller.ozon.ru/v4/returns/company/fbo", {"filter": {}, "limit": 5, "offset": 0}),
+    ("POST", "https://api-seller.ozon.ru/v1/returns/list",        {"limit": 5, "offset": 0}),
+    ("POST", "https://api-seller.ozon.ru/v2/returns/list",        {"limit": 5, "offset": 0}),
+    ("POST", "https://api-seller.ozon.ru/v1/customer/return/list",{"limit": 5, "offset": 0}),
+    ("GET",  "https://api-seller.ozon.ru/v1/returns",             {}),
+]
+for method, url, body in candidates:
+    if method == "POST":
+        rr = requests.post(url, headers=headers, json=body, timeout=10)
+    else:
+        rr = requests.get(url, headers=headers, timeout=10)
+    print(f"  {method} {url.split('.ru')[1]:45s} → {rr.status_code}: {rr.text[:120]}")
 
 # ── 2. FBS список — пробуем все возможные статусы возврата ───────────────────
 print("\n=== FBS posting/list — статусы возврата ===")
