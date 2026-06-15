@@ -1,4 +1,4 @@
-name: Ozon BM — Возвраты
+name: Ozon BM — Возвраты и отмены
 
 on:
   schedule:
