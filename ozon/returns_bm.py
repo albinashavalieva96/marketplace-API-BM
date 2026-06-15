@@ -34,7 +34,7 @@ def fetch_returns(client_id, api_key):
     date_from = (now - timedelta(days=DAYS_BACK)).strftime("%Y-%m-%dT00:00:00.000Z")
     date_to = now.strftime("%Y-%m-%dT23:59:59.999Z")
     rows = []
-    limit = 1000  # один запрос — последние 1000 возвратов
+    limit = 500  # один запрос — последние 500 возвратов (API максимум)
 
     r = requests.post(
         "https://api-seller.ozon.ru/v1/returns/list",
