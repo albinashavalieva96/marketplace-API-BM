@@ -13,28 +13,40 @@ headers = {
 }
 
 now = datetime.now(timezone.utc)
-month = now.strftime("%Y-%m")
 date_from = (now - timedelta(days=30)).strftime("%Y-%m-%dT00:00:00.000Z")
 date_to = now.strftime("%Y-%m-%dT23:59:59.999Z")
+prev = now.replace(day=1) - timedelta(days=1)
 
+# 1. Реализация прошлого месяца — полная первая строка + заголовок
+print("\n=== v2/finance/realization (prev month) — ПОЛНЫЙ ОТВЕТ ===")
+r = requests.post(
+    "https://api-seller.ozon.ru/v2/finance/realization",
+    headers=headers,
+    json={"year": prev.year, "month": prev.month},
+    timeout=30,
+)
+print(f"HTTP: {r.status_code}")
+if r.status_code == 200:
+    data = r.json().get("result", {})
+    print("--- header ---")
+    print(json.dumps(data.get("header", {}), indent=2, ensure_ascii=False))
+    rows = data.get("rows", [])
+    print(f"\nВсего строк: {len(rows)}")
+    if rows:
+        print("--- первая строка (полностью) ---")
+        print(json.dumps(rows[0], indent=2, ensure_ascii=False))
+    totals = data.get("totals", {})
+    print("--- totals ---")
+    print(json.dumps(totals, indent=2, ensure_ascii=False))
+else:
+    print(r.text[:500])
 
-def try_endpoint(label, url, body):
-    print(f"\n=== {label} ===")
-    print(f"URL: {url}")
-    r = requests.post(url, headers=headers, json=body, timeout=30)
-    print(f"HTTP: {r.status_code}")
-    if r.status_code == 200:
-        data = r.json()
-        print(json.dumps(data, indent=2, ensure_ascii=False)[:1000])
-    else:
-        print(f"Ошибка: {r.text[:300]}")
-
-
-# Транзакции
-try_endpoint(
-    "v3/finance/transaction/list",
+# 2. Транзакции — одна запись полностью
+print("\n=== v3/finance/transaction/list — первая операция полностью ===")
+r = requests.post(
     "https://api-seller.ozon.ru/v3/finance/transaction/list",
-    {
+    headers=headers,
+    json={
         "filter": {
             "date": {"from": date_from, "to": date_to},
             "operation_type": [],
@@ -42,58 +54,42 @@ try_endpoint(
             "transaction_type": "all",
         },
         "page": 1,
-        "page_size": 10,
+        "page_size": 1,
     },
+    timeout=30,
 )
+print(f"HTTP: {r.status_code}")
+if r.status_code == 200:
+    ops = r.json().get("result", {}).get("operations", [])
+    if ops:
+        print(json.dumps(ops[0], indent=2, ensure_ascii=False))
+    print(f"Всего операций в периоде: {r.json().get('result', {}).get('page_count', '?')}")
+else:
+    print(r.text[:300])
 
-try_endpoint(
-    "v2/finance/transaction/list",
-    "https://api-seller.ozon.ru/v2/finance/transaction/list",
-    {
-        "filter": {
-            "date": {"from": date_from, "to": date_to},
-            "operation_type": [],
-            "posting_number": "",
-            "transaction_type": "all",
-        },
-        "page": 1,
-        "page_size": 10,
-    },
-)
-
-# Реализация — v2 ждёт year+month как числа
-try_endpoint(
-    "v2/finance/realization (year+month)",
-    "https://api-seller.ozon.ru/v2/finance/realization",
-    {"year": now.year, "month": now.month},
-)
-
-try_endpoint(
-    "v2/finance/realization (prev month)",
-    "https://api-seller.ozon.ru/v2/finance/realization",
-    {"year": (now.replace(day=1) - timedelta(days=1)).year,
-     "month": (now.replace(day=1) - timedelta(days=1)).month},
-)
-
-# Выплаты / treasury
-try_endpoint(
-    "v1/finance/treasury/totals",
-    "https://api-seller.ozon.ru/v1/finance/treasury/totals",
-    {},
-)
-
-try_endpoint(
-    "v1/finance/treasury/transactions",
-    "https://api-seller.ozon.ru/v1/finance/treasury/transactions",
-    {"page": 1, "page_size": 10},
-)
-
-try_endpoint(
-    "v1/finance/cash-flow-statement/list",
+# 3. Cash-flow — все периоды
+print("\n=== v1/finance/cash-flow-statement/list — все периоды ===")
+r = requests.post(
     "https://api-seller.ozon.ru/v1/finance/cash-flow-statement/list",
-    {
+    headers=headers,
+    json={
         "date": {"from": date_from, "to": date_to},
         "page": 1,
-        "page_size": 10,
+        "page_size": 20,
     },
+    timeout=30,
 )
+print(f"HTTP: {r.status_code}")
+if r.status_code == 200:
+    flows = r.json().get("result", {}).get("cash_flows", [])
+    for f in flows:
+        net = (f.get("orders_amount", 0) + f.get("returns_amount", 0)
+               + f.get("commission_amount", 0) + f.get("services_amount", 0)
+               + f.get("item_delivery_and_return_amount", 0))
+        begin = f["period"]["begin"][:10]
+        end = f["period"]["end"][:10]
+        print(f"  {begin} – {end}: NET = {round(net, 2):>12} ₽  "
+              f"(заказы {f.get('orders_amount',0)}, возвраты {f.get('returns_amount',0)}, "
+              f"комиссия {f.get('commission_amount',0)}, логистика {f.get('item_delivery_and_return_amount',0)})")
+else:
+    print(r.text[:300])
