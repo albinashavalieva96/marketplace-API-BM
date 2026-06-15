@@ -1,4 +1,4 @@
-name: Ozon BM — Финансы / Выплаты
+name: Ozon BM — Баланс по артикулам
 
 on:
   schedule:
