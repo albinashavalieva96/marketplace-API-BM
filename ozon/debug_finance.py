@@ -12,37 +12,12 @@ headers = {
     "Content-Type": "application/json",
 }
 
-now = datetime.now(timezone.utc)
-date_from = (now - timedelta(days=30)).strftime("%Y-%m-%dT00:00:00.000Z")
-date_to = now.strftime("%Y-%m-%dT23:59:59.999Z")
-prev = now.replace(day=1) - timedelta(days=1)
+# Период: 18–24 мая 2026
+date_from = "2026-05-18T00:00:00.000Z"
+date_to   = "2026-05-24T23:59:59.999Z"
 
-# 1. Реализация прошлого месяца — полная первая строка + заголовок
-print("\n=== v2/finance/realization (prev month) — ПОЛНЫЙ ОТВЕТ ===")
-r = requests.post(
-    "https://api-seller.ozon.ru/v2/finance/realization",
-    headers=headers,
-    json={"year": prev.year, "month": prev.month},
-    timeout=30,
-)
-print(f"HTTP: {r.status_code}")
-if r.status_code == 200:
-    data = r.json().get("result", {})
-    print("--- header ---")
-    print(json.dumps(data.get("header", {}), indent=2, ensure_ascii=False))
-    rows = data.get("rows", [])
-    print(f"\nВсего строк: {len(rows)}")
-    if rows:
-        print("--- первая строка (полностью) ---")
-        print(json.dumps(rows[0], indent=2, ensure_ascii=False))
-    totals = data.get("totals", {})
-    print("--- totals ---")
-    print(json.dumps(totals, indent=2, ensure_ascii=False))
-else:
-    print(r.text[:500])
-
-# 2. Транзакции — одна запись полностью
-print("\n=== v3/finance/transaction/list — первая операция полностью ===")
+# ── 1. Транзакции по типам ───────────────────────────────────────────────────
+print("=== Транзакции 18–24 мая по типам ===")
 r = requests.post(
     "https://api-seller.ozon.ru/v3/finance/transaction/list",
     headers=headers,
@@ -54,42 +29,73 @@ r = requests.post(
             "transaction_type": "all",
         },
         "page": 1,
-        "page_size": 1,
+        "page_size": 1000,
     },
-    timeout=30,
+    timeout=60,
 )
 print(f"HTTP: {r.status_code}")
 if r.status_code == 200:
     ops = r.json().get("result", {}).get("operations", [])
-    if ops:
-        print(json.dumps(ops[0], indent=2, ensure_ascii=False))
-    print(f"Всего операций в периоде: {r.json().get('result', {}).get('page_count', '?')}")
-else:
-    print(r.text[:300])
+    by_type = {}
+    by_op_type = {}
+    for op in ops:
+        t = op.get("type", "?")
+        ot = op.get("operation_type", "?")
+        amt = float(op.get("amount", 0) or 0)
+        by_type[t] = by_type.get(t, 0) + amt
+        by_op_type[ot] = by_op_type.get(ot, 0) + amt
 
-# 3. Cash-flow — все периоды
-print("\n=== v1/finance/cash-flow-statement/list — все периоды ===")
-r = requests.post(
-    "https://api-seller.ozon.ru/v1/finance/cash-flow-statement/list",
-    headers=headers,
-    json={
-        "date": {"from": date_from, "to": date_to},
-        "page": 1,
-        "page_size": 20,
-    },
-    timeout=30,
-)
-print(f"HTTP: {r.status_code}")
+    print(f"Всего операций: {len(ops)}")
+    print("\nПо type:")
+    for k, v in sorted(by_type.items(), key=lambda x: abs(x[1]), reverse=True):
+        print(f"  {k:20s}  {round(v, 2):>12} ₽")
+    print("\nПо operation_type:")
+    for k, v in sorted(by_op_type.items(), key=lambda x: abs(x[1]), reverse=True):
+        print(f"  {k:50s}  {round(v, 2):>12} ₽")
+    total = sum(by_type.values())
+    print(f"\nИТОГО всех типов: {round(total, 2)} ₽")
+    print(f"ИТОГО только orders: {round(by_type.get('orders', 0), 2)} ₽")
+
+# ── 2. SKU → offer_id: разные варианты ──────────────────────────────────────
+# Берём SKU из первой транзакции
+sample_skus = []
 if r.status_code == 200:
-    flows = r.json().get("result", {}).get("cash_flows", [])
-    for f in flows:
-        net = (f.get("orders_amount", 0) + f.get("returns_amount", 0)
-               + f.get("commission_amount", 0) + f.get("services_amount", 0)
-               + f.get("item_delivery_and_return_amount", 0))
-        begin = f["period"]["begin"][:10]
-        end = f["period"]["end"][:10]
-        print(f"  {begin} – {end}: NET = {round(net, 2):>12} ₽  "
-              f"(заказы {f.get('orders_amount',0)}, возвраты {f.get('returns_amount',0)}, "
-              f"комиссия {f.get('commission_amount',0)}, логистика {f.get('item_delivery_and_return_amount',0)})")
-else:
-    print(r.text[:300])
+    for op in r.json().get("result", {}).get("operations", [])[:20]:
+        for it in (op.get("items") or []):
+            if it.get("sku"):
+                sample_skus.append(int(it["sku"]))
+    sample_skus = list(set(sample_skus))[:5]
+    print(f"\nТестовые SKU: {sample_skus}")
+
+def try_product(label, url, body):
+    print(f"\n=== {label} ===")
+    rr = requests.post(url, headers=headers, json=body, timeout=30)
+    print(f"HTTP: {rr.status_code}")
+    if rr.status_code == 200:
+        print(json.dumps(rr.json(), indent=2, ensure_ascii=False)[:800])
+    else:
+        print(rr.text[:300])
+
+if sample_skus:
+    try_product(
+        "v3/product/info/list с sku",
+        "https://api-seller.ozon.ru/v3/product/info/list",
+        {"sku": sample_skus},
+    )
+    try_product(
+        "v2/product/info/list с sku",
+        "https://api-seller.ozon.ru/v2/product/info/list",
+        {"sku": sample_skus},
+    )
+    try_product(
+        "v3/product/info/list с product_id",
+        "https://api-seller.ozon.ru/v3/product/info/list",
+        {"product_id": sample_skus},
+    )
+
+# Список всех товаров продавца
+try_product(
+    "v2/product/list (все товары)",
+    "https://api-seller.ozon.ru/v2/product/list",
+    {"filter": {}, "last_id": "", "limit": 3},
+)
