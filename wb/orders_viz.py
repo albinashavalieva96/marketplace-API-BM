@@ -4,7 +4,7 @@ import requests
 from datetime import datetime, timedelta, timezone
 
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-from common.sheets import write_sheet
+from common.sheets import write_sheet, get_brand_map
 
 SPREADSHEET_ID = "1f5I82g5Nmy3AMn9s0AWta-Hc0HoHSAi9BWlSomzoppM"
 SHEET_NAME = "API - WB Виз - Заказы"
@@ -41,7 +41,7 @@ def fmt_date(value):
         return str(value)[:10]
 
 
-def fetch_orders(api_key):
+def fetch_orders(api_key, brand_map):
     now = datetime.now(timezone.utc)
     date_from = (now - timedelta(days=DAYS_BACK)).strftime("%Y-%m-%dT00:00:00")
 
@@ -60,13 +60,14 @@ def fetch_orders(api_key):
     for o in r.json():
         status = "Отменено" if o.get("isCancel") else "В работе"
         supply_type = "FBO" if o.get("warehouseType") == "Склад WB" else "FBS"
+        article = o.get("supplierArticle", "")
         rows.append([
             o.get("gNumber", ""),
             o.get("srid", ""),
             fmt_dt(o.get("date", "")),
             fmt_dt(o.get("lastChangeDate", "")),
             status,
-            o.get("supplierArticle", ""),
+            article,
             fmt_num(o.get("totalPrice", "")),
             o.get("quantity") or 1,
             o.get("warehouseName", ""),
@@ -75,6 +76,7 @@ def fetch_orders(api_key):
             fmt_spp(o.get("spp", "")),
             supply_type,
             fmt_date(o.get("date", "")),
+            brand_map.get(article, ""),
         ])
 
     return rows
@@ -86,7 +88,10 @@ def main():
     print(f"Запуск: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
     print(f"Загружаю заказы WB Виз за последние {DAYS_BACK} дней...")
 
-    rows = fetch_orders(api_key)
+    brand_map = get_brand_map(SPREADSHEET_ID)
+    print(f"Справочник брендов: {len(brand_map)} артикулов")
+
+    rows = fetch_orders(api_key, brand_map)
     print(f"Заказы: {len(rows)} строк")
 
     write_sheet(SPREADSHEET_ID, SHEET_NAME, rows)

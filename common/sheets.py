@@ -53,6 +53,7 @@ DATA_HEADERS = [
     "СПП",
     "Форма поставки",
     "Дата Принят в обработку",
+    "Бренд",
 ]
 
 IDX_POSTING = 1  # row[1] = Номер отправления
@@ -66,6 +67,21 @@ def get_sheets_client():
     creds_dict = json.loads(os.environ["GOOGLE_CREDENTIALS"])
     creds = Credentials.from_service_account_info(creds_dict, scopes=SCOPES)
     return gspread.authorize(creds)
+
+
+def get_brand_map(spreadsheet_id):
+    """Загружает справочник артикул→бренд из листа 'Скрипт - Справочник'.
+    Колонка D (индекс 3) = бренд, колонка P (индекс 15) = артикул."""
+    client = get_sheets_client()
+    ws = client.open_by_key(spreadsheet_id).worksheet("Скрипт - Справочник")
+    brand_map = {}
+    for row in ws.get_all_values()[1:]:
+        if len(row) > 15:
+            article = row[15].strip()
+            brand = row[3].strip()
+            if article:
+                brand_map[article] = brand
+    return brand_map
 
 
 def _write_sheet(spreadsheet, sheet_name, new_rows):
