@@ -41,7 +41,21 @@ def fmt_date(value):
         return str(value)[:10]
 
 
-def fetch_orders(api_key, brand_map):
+def fetch_delivered_srids(api_key, date_from):
+    """Возвращает множество srid заказов, которые были доставлены (saleID начинается с S)."""
+    r = requests.get(
+        "https://statistics-api.wildberries.ru/api/v1/supplier/sales",
+        headers={"Authorization": f"Bearer {api_key}"},
+        params={"dateFrom": date_from, "flag": 0},
+        timeout=60,
+    )
+    if r.status_code != 200:
+        print(f"Ошибка загрузки продаж: {r.status_code}")
+        return set()
+    return {s["srid"] for s in r.json() if str(s.get("saleID", "")).startswith("S") and s.get("srid")}
+
+
+def fetch_orders(api_key, brand_map, delivered_srids):
     now = datetime.now(timezone.utc)
     date_from = (now - timedelta(days=DAYS_BACK)).strftime("%Y-%m-%dT00:00:00")
 
@@ -58,12 +72,18 @@ def fetch_orders(api_key, brand_map):
 
     rows = []
     for o in r.json():
-        status = "Отменено" if o.get("isCancel") else "В работе"
+        srid = o.get("srid", "")
+        if o.get("isCancel"):
+            status = "Отменён"
+        elif srid in delivered_srids:
+            status = "Доставлен"
+        else:
+            status = "В работе"
         supply_type = "FBO" if o.get("warehouseType") == "Склад WB" else "FBS"
         article = o.get("supplierArticle", "")
         rows.append([
             o.get("gNumber", ""),
-            o.get("srid", ""),
+            srid,
             fmt_dt(o.get("date", "")),
             fmt_dt(o.get("lastChangeDate", "")),
             status,
@@ -84,6 +104,8 @@ def fetch_orders(api_key, brand_map):
 
 def main():
     api_key = os.environ["WB_VIZ_API_KEY"]
+    now = datetime.now(timezone.utc)
+    date_from = (now - timedelta(days=DAYS_BACK)).strftime("%Y-%m-%dT00:00:00")
 
     print(f"Запуск: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
     print(f"Загружаю заказы WB Виз за последние {DAYS_BACK} дней...")
@@ -91,7 +113,10 @@ def main():
     brand_map = get_brand_map(SPREADSHEET_ID)
     print(f"Справочник брендов: {len(brand_map)} артикулов")
 
-    rows = fetch_orders(api_key, brand_map)
+    delivered_srids = fetch_delivered_srids(api_key, date_from)
+    print(f"Доставленных заказов: {len(delivered_srids)}")
+
+    rows = fetch_orders(api_key, brand_map, delivered_srids)
     print(f"Заказы: {len(rows)} строк")
 
     write_sheet(SPREADSHEET_ID, SHEET_NAME, rows)
