@@ -51,6 +51,20 @@ def fmt_date(value):
         return str(value)[:10]
 
 
+def fetch_delivered_srids(api_key, date_from):
+    """srid FBO-заказов, которые уже доставлены (есть в продажах с saleID=S*)."""
+    r = requests.get(
+        "https://statistics-api.wildberries.ru/api/v1/supplier/sales",
+        headers={"Authorization": f"Bearer {api_key}"},
+        params={"dateFrom": date_from, "flag": 0},
+        timeout=60,
+    )
+    if r.status_code != 200:
+        print(f"Ошибка загрузки продаж: {r.status_code}")
+        return set()
+    return {s["srid"] for s in r.json() if str(s.get("saleID", "")).startswith("S") and s.get("srid")}
+
+
 def fetch_fbs_statuses(api_key):
     """Возвращает {orderUid: wbStatus} для всех FBS-заказов через маркетплейс API."""
     headers = {"Authorization": f"Bearer {api_key}"}
@@ -100,7 +114,7 @@ def fetch_fbs_statuses(api_key):
     return status_map
 
 
-def fetch_orders(api_key, brand_map, fbs_statuses):
+def fetch_orders(api_key, brand_map, fbs_statuses, delivered_srids):
     now = datetime.now(timezone.utc)
     date_from = (now - timedelta(days=DAYS_BACK)).strftime("%Y-%m-%dT00:00:00")
 
@@ -126,6 +140,8 @@ def fetch_orders(api_key, brand_map, fbs_statuses):
             status = "Отменён"
         elif wb_status:
             status = WB_STATUS_RU.get(wb_status, wb_status)
+        elif srid in delivered_srids:
+            status = "Доставлен"
         else:
             status = "В работе"
 
@@ -154,6 +170,8 @@ def fetch_orders(api_key, brand_map, fbs_statuses):
 
 def main():
     api_key = os.environ["WB_VIZ_API_KEY"]
+    now = datetime.now(timezone.utc)
+    date_from = (now - timedelta(days=DAYS_BACK)).strftime("%Y-%m-%dT00:00:00")
 
     print(f"Запуск: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
     print(f"Загружаю заказы WB Виз за последние {DAYS_BACK} дней...")
@@ -164,7 +182,10 @@ def main():
     fbs_statuses = fetch_fbs_statuses(api_key)
     print(f"FBS статусов загружено: {len(fbs_statuses)}")
 
-    rows = fetch_orders(api_key, brand_map, fbs_statuses)
+    delivered_srids = fetch_delivered_srids(api_key, date_from)
+    print(f"FBO доставленных: {len(delivered_srids)}")
+
+    rows = fetch_orders(api_key, brand_map, fbs_statuses, delivered_srids)
     print(f"Заказы: {len(rows)} строк")
 
     write_sheet(SPREADSHEET_ID, SHEET_NAME, rows)
