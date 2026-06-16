@@ -6,30 +6,47 @@ from datetime import datetime, timedelta, timezone
 api_key = os.environ["WB_VIZ_API_KEY"]
 headers = {"Authorization": f"Bearer {api_key}"}
 now = datetime.now(timezone.utc)
-date_from = (now - timedelta(days=30)).strftime("%Y-%m-%dT00:00:00")
+date_from = (now - timedelta(days=30)).strftime("%Y-%m-%d")
+date_to = now.strftime("%Y-%m-%d")
 
-candidates = [
-    ("GET", "https://marketplace-api.wildberries.ru/api/v3/returns", {"limit": 5, "next": 0}),
-    ("GET", "https://marketplace-api.wildberries.ru/api/v1/returns", {"limit": 5, "next": 0}),
-    ("GET", "https://marketplace-api.wildberries.ru/api/v3/returns/orders", {"limit": 5}),
-    ("GET", "https://marketplace-api.wildberries.ru/api/v3/returns/goods", {"limit": 5}),
-    ("GET", "https://marketplace-api.wildberries.ru/api/v3/returns/company/orders", {"limit": 5}),
-    ("GET", "https://statistics-api.wildberries.ru/api/v1/supplier/sales", {"dateFrom": date_from, "flag": 0}),
+print("=== seller-analytics-api /api/v1/analytics/goods-return ===")
+
+# Пробуем разные наборы параметров
+param_variants = [
+    {"dateFrom": date_from, "dateTo": date_to},
+    {"dateFrom": date_from, "dateTo": date_to, "page": 1},
+    {"dateFrom": date_from, "dateTo": date_to, "limit": 10, "offset": 0},
+    {"dateFrom": date_from, "dateTo": date_to, "limit": 10, "page": 1},
+    {},
 ]
 
-for method, url, params in candidates:
-    r = requests.get(url, headers=headers, params=params, timeout=15)
-    preview = r.text[:200].replace("\n", " ")
-    print(f"{method} {url.split('wildberries.ru')[1]} → {r.status_code}: {preview}")
+for params in param_variants:
+    r = requests.get(
+        "https://seller-analytics-api.wildberries.ru/api/v1/analytics/goods-return",
+        headers=headers,
+        params=params,
+        timeout=30,
+    )
+    print(f"Params: {params}")
+    print(f"HTTP: {r.status_code}")
+    print(f"Ответ: {r.text[:500]}")
     if r.status_code == 200:
         data = r.json()
         if isinstance(data, list):
-            print(f"  Список: {len(data)} записей")
+            print(f"Список: {len(data)} записей")
             if data:
-                print(f"  Ключи первой записи: {list(data[0].keys())}")
+                print(f"Ключи первой записи: {list(data[0].keys())}")
+                print(f"Первая запись: {json.dumps(data[0], ensure_ascii=False, indent=2)}")
         elif isinstance(data, dict):
-            print(f"  Ключи: {list(data.keys())}")
+            print(f"Ключи верхнего уровня: {list(data.keys())}")
             for k, v in data.items():
                 if isinstance(v, list) and v:
-                    print(f"  {k}: {len(v)} записей, ключи: {list(v[0].keys())}")
+                    print(f"  {k}: {len(v)} записей")
+                    print(f"  Ключи первой записи: {list(v[0].keys())}")
+                    print(f"  Первая запись: {json.dumps(v[0], ensure_ascii=False, indent=2)}")
+                    break
+                else:
+                    print(f"  {k}: {v}")
+        print("=== РАБОТАЕТ ===")
+        break
     print()
