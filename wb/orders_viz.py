@@ -13,6 +13,7 @@ DAYS_BACK = 30
 WB_STATUS_RU = {
     "waiting": "Ожидает",
     "sorted": "Отправлен",
+    "ready_for_pickup": "В пункте выдачи",
     "sold": "Доставлен",
     "canceled": "Отменён",
     "canceled_by_client": "Отменён покупателем",
