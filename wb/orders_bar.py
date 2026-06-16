@@ -9,7 +9,7 @@ from common.sheets import write_sheet, get_brand_map
 
 SPREADSHEET_ID = "1f5I82g5Nmy3AMn9s0AWta-Hc0HoHSAi9BWlSomzoppM"
 SHEET_NAME = "API - WB Бар - Заказы"
-DAYS_BACK = 30
+DAYS_BACK = 90
 
 WB_STATUS_RU = {
     "waiting": "Ожидает",
