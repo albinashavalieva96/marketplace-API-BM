@@ -8,7 +8,6 @@ from common.sheets import write_returns_sheet
 
 SPREADSHEET_ID = "1f5I82g5Nmy3AMn9s0AWta-Hc0HoHSAi9BWlSomzoppM"
 SHEET_NAME = "API - WB Бар - Возвраты"
-DAYS_BACK = 90
 
 
 def fmt_dt(value):
@@ -25,33 +24,43 @@ def fmt_num(value, decimals=2):
 
 
 def fetch_returns(api_key):
-    now = datetime.now(timezone.utc)
-    date_from = (now - timedelta(days=DAYS_BACK)).strftime("%Y-%m-%dT00:00:00")
-
-    r = requests.get(
-        "https://statistics-api.wildberries.ru/api/v1/supplier/returns",
-        headers={"Authorization": f"Bearer {api_key}"},
-        params={"dateFrom": date_from, "flag": 0},
-        timeout=120,
-    )
-    if r.status_code != 200:
-        print(f"Ошибка WB returns: {r.status_code} — {r.text[:300]}")
-        return []
-
+    headers = {"Authorization": f"Bearer {api_key}"}
     rows = []
-    for ret in r.json():
-        supply_type = "FBO" if ret.get("warehouseType") == "Склад WB" else "FBS"
-        rows.append([
-            fmt_dt(ret.get("date", "")),
-            ret.get("supplierArticle", ""),
-            "",
-            "",
-            ret.get("srid", ""),
-            "",
-            supply_type,
-            ret.get("gNumber", ""),
-            fmt_num(ret.get("finishedPrice", "")),
-        ])
+    limit = 1000
+    next_id = 0
+
+    while True:
+        r = requests.get(
+            "https://marketplace-api.wildberries.ru/api/v3/returns",
+            headers=headers,
+            params={"limit": limit, "next": next_id},
+            timeout=60,
+        )
+        if r.status_code != 200:
+            print(f"Ошибка возвратов: {r.status_code} — {r.text[:300]}")
+            break
+
+        data = r.json()
+        returns = data.get("returns", [])
+        print(f"  Батч: {len(returns)} возвратов (next={next_id})")
+
+        for ret in returns:
+            rows.append([
+                fmt_dt(ret.get("date", "")),
+                ret.get("article", "") or ret.get("supplierArticle", "") or str(ret.get("nmId", "")),
+                ret.get("status", ""),
+                ret.get("returnReasonName", ""),
+                ret.get("srid", ""),
+                fmt_dt(ret.get("collectedAt", "")),
+                ret.get("supplierType", "") or ret.get("type", ""),
+                ret.get("orderUid", "") or ret.get("gNumber", ""),
+                fmt_num(ret.get("price", "")),
+            ])
+
+        cursor = data.get("cursor", {})
+        if len(returns) < limit or not cursor.get("id"):
+            break
+        next_id = cursor["id"]
 
     return rows
 
@@ -60,7 +69,7 @@ def main():
     api_key = os.environ["WB_BAR_API_KEY"]
 
     print(f"Запуск: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
-    print(f"Загружаю возвраты WB Бар за последние {DAYS_BACK} дней...")
+    print("Загружаю возвраты WB Бар...")
 
     rows = fetch_returns(api_key)
     print(f"Возвраты: {len(rows)} строк")
