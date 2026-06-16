@@ -32,6 +32,16 @@ def fmt_spp(value):
         return ""
 
 
+def fmt_date(value):
+    if not value:
+        return ""
+    try:
+        dt = datetime.fromisoformat(str(value)[:19])
+        return dt.strftime("%d.%m.%Y")
+    except (ValueError, TypeError):
+        return str(value)[:10]
+
+
 def fetch_orders(api_key):
     now = datetime.now(timezone.utc)
     date_from = (now - timedelta(days=DAYS_BACK)).strftime("%Y-%m-%dT00:00:00")
@@ -73,8 +83,7 @@ def fetch_orders(api_key):
             fmt_num(o.get("finishedPrice", "")),
             fmt_spp(o.get("spp", "")),
             supply_type,
-            o.get("orderType", ""),
-            fmt_dt(o.get("cancelDate", "")) if o.get("isCancel") else "",
+            fmt_date(o.get("date", "")),
         ])
 
     return rows
