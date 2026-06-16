@@ -64,6 +64,8 @@ def fetch_orders(api_key):
             fmt_num(o.get("finishedPrice", "")),
             fmt_spp(o.get("spp", "")),
             supply_type,
+            o.get("orderType", ""),
+            fmt_dt(o.get("cancelDate", "")) if o.get("isCancel") else "",
         ])
 
     return rows
