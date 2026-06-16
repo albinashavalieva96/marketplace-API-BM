@@ -24,43 +24,34 @@ def fmt_num(value, decimals=2):
         return ""
 
 
-def fetch_orders_price(api_key, date_from):
+def fetch_returns(api_key):
+    now = datetime.now(timezone.utc)
+    date_from = (now - timedelta(days=DAYS_BACK)).strftime("%Y-%m-%dT00:00:00")
+
     r = requests.get(
-        "https://statistics-api.wildberries.ru/api/v1/supplier/orders",
+        "https://statistics-api.wildberries.ru/api/v1/supplier/returns",
         headers={"Authorization": f"Bearer {api_key}"},
         params={"dateFrom": date_from, "flag": 0},
         timeout=120,
     )
     if r.status_code != 200:
-        print(f"Ошибка загрузки заказов для цен: {r.status_code}")
-        return {}
-    return {o.get("srid", ""): o.get("finishedPrice", "") for o in r.json() if o.get("srid")}
+        print(f"Ошибка WB returns: {r.status_code} — {r.text[:300]}")
+        return []
 
-
-def fetch_returns(api_key):
     rows = []
-    limit = 1000
-    next_id = 0
-
-    while True:
-        r = requests.get(
-            "https://marketplace-api.wildberries.ru/api/v3/returns",
-            headers={"Authorization": f"Bearer {api_key}"},
-            params={"limit": limit, "next": next_id},
-            timeout=60,
-        )
-        if r.status_code != 200:
-            print(f"Ошибка возвратов: {r.status_code} — {r.text[:300]}")
-            break
-
-        data = r.json()
-        returns = data.get("returns", [])
-        rows.extend(returns)
-
-        cursor = data.get("cursor", {})
-        if len(returns) < limit or not cursor.get("id"):
-            break
-        next_id = cursor.get("id", 0)
+    for ret in r.json():
+        supply_type = "FBO" if ret.get("warehouseType") == "Склад WB" else "FBS"
+        rows.append([
+            fmt_dt(ret.get("date", "")),
+            ret.get("supplierArticle", ""),
+            "",
+            "",
+            ret.get("srid", ""),
+            "",
+            supply_type,
+            ret.get("gNumber", ""),
+            fmt_num(ret.get("finishedPrice", "")),
+        ])
 
     return rows
 
@@ -68,38 +59,12 @@ def fetch_returns(api_key):
 def main():
     api_key = os.environ["WB_BAR_API_KEY"]
 
-    now = datetime.now(timezone.utc)
-    date_from = (now - timedelta(days=DAYS_BACK)).strftime("%Y-%m-%dT00:00:00")
-
     print(f"Запуск: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
-    print("Загружаю возвраты WB Бар...")
+    print(f"Загружаю возвраты WB Бар за последние {DAYS_BACK} дней...")
 
-    price_map = fetch_orders_price(api_key, date_from)
-    print(f"Цены загружены: {len(price_map)} заказов")
+    rows = fetch_returns(api_key)
+    print(f"Возвраты: {len(rows)} строк")
 
-    raw_returns = fetch_returns(api_key)
-    print(f"Возвратов из API: {len(raw_returns)}")
-
-    rows = []
-    for ret in raw_returns:
-        collected_at = ret.get("collectedAt", "") or ret.get("returnDate", "")
-        if collected_at:
-            continue
-
-        srid = ret.get("srid", "")
-        rows.append([
-            fmt_dt(ret.get("date", "")),
-            str(ret.get("nmId", "") or ret.get("article", "")),
-            ret.get("status", ""),
-            ret.get("returnReasonName", ""),
-            srid,
-            fmt_dt(collected_at),
-            ret.get("supplierType", "") or ret.get("type", ""),
-            ret.get("orderUid", ""),
-            fmt_num(price_map.get(srid, "")),
-        ])
-
-    print(f"В пути к нам: {len(rows)} строк")
     write_returns_sheet(SPREADSHEET_ID, SHEET_NAME, rows)
     print("Готово!")
 

@@ -24,83 +24,47 @@ def fmt_num(value, decimals=2):
         return ""
 
 
-def fetch_orders_price(api_key, date_from):
-    """Строим словарь srid → finishedPrice из API заказов."""
+def fetch_returns(api_key):
+    now = datetime.now(timezone.utc)
+    date_from = (now - timedelta(days=DAYS_BACK)).strftime("%Y-%m-%dT00:00:00")
+
     r = requests.get(
-        "https://statistics-api.wildberries.ru/api/v1/supplier/orders",
+        "https://statistics-api.wildberries.ru/api/v1/supplier/returns",
         headers={"Authorization": f"Bearer {api_key}"},
         params={"dateFrom": date_from, "flag": 0},
         timeout=120,
     )
     if r.status_code != 200:
-        print(f"Ошибка загрузки заказов для цен: {r.status_code}")
-        return {}
-    return {o.get("srid", ""): o.get("finishedPrice", "") for o in r.json() if o.get("srid")}
+        print(f"Ошибка WB returns: {r.status_code} — {r.text[:300]}")
+        return []
 
+    rows = []
+    for ret in r.json():
+        supply_type = "FBO" if ret.get("warehouseType") == "Склад WB" else "FBS"
+        rows.append([
+            fmt_dt(ret.get("date", "")),
+            ret.get("supplierArticle", ""),
+            "",
+            "",
+            ret.get("srid", ""),
+            "",
+            supply_type,
+            ret.get("gNumber", ""),
+            fmt_num(ret.get("finishedPrice", "")),
+        ])
 
-def fetch_returns(api_key):
-    headers = {"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"}
-    now = datetime.now(timezone.utc)
-    date_from = (now - timedelta(days=DAYS_BACK)).strftime("%Y-%m-%dT00:00:00Z")
-
-    get_candidates = [
-        ("https://marketplace-api.wildberries.ru/api/v3/returns/company/unredeemed", {"limit": 10}),
-        ("https://marketplace-api.wildberries.ru/api/v3/supply-requests", {"limit": 10}),
-        ("https://marketplace-api.wildberries.ru/api/v3/nm/returns", {"limit": 10}),
-    ]
-    for url, params in get_candidates:
-        r = requests.get(url, headers=headers, params=params, timeout=30)
-        print(f"GET {url} → {r.status_code}: {r.text[:150]}")
-
-    post_candidates = [
-        ("https://marketplace-api.wildberries.ru/api/v3/returns", {"dateFrom": date_from, "limit": 10}),
-        ("https://statistics-api.wildberries.ru/api/v1/supplier/returns", {"dateFrom": date_from}),
-    ]
-    for url, body in post_candidates:
-        r = requests.post(url, headers=headers, json=body, timeout=30)
-        print(f"POST {url} → {r.status_code}: {r.text[:150]}")
-
-    return []
+    return rows
 
 
 def main():
     api_key = os.environ["WB_VIZ_API_KEY"]
 
-    now = datetime.now(timezone.utc)
-    date_from = (now - timedelta(days=DAYS_BACK)).strftime("%Y-%m-%dT00:00:00")
-
     print(f"Запуск: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
-    print("Загружаю возвраты WB Виз...")
+    print(f"Загружаю возвраты WB Виз за последние {DAYS_BACK} дней...")
 
-    price_map = fetch_orders_price(api_key, date_from)
-    print(f"Цены загружены: {len(price_map)} заказов")
+    rows = fetch_returns(api_key)
+    print(f"Возвраты: {len(rows)} строк")
 
-    raw_returns = fetch_returns(api_key)
-    print(f"Возвратов из API: {len(raw_returns)}")
-    if raw_returns:
-        print(f"Пример записи: {raw_returns[0]}")
-
-    rows = []
-    for ret in raw_returns:
-        collected_at = ret.get("collectedAt", "") or ret.get("returnDate", "")
-        # Только те, что ещё не забрали (товар в пути к нам)
-        if collected_at:
-            continue
-
-        srid = ret.get("srid", "")
-        rows.append([
-            fmt_dt(ret.get("date", "")),
-            str(ret.get("nmId", "") or ret.get("article", "")),
-            ret.get("status", ""),
-            ret.get("returnReasonName", ""),
-            srid,
-            fmt_dt(collected_at),
-            ret.get("supplierType", "") or ret.get("type", ""),
-            ret.get("orderUid", ""),
-            fmt_num(price_map.get(srid, "")),
-        ])
-
-    print(f"В пути к нам: {len(rows)} строк")
     write_returns_sheet(SPREADSHEET_ID, SHEET_NAME, rows)
     print("Готово!")
 
