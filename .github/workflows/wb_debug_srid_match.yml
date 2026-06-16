@@ -1,0 +1,20 @@
+name: WB — Debug srid match
+
+on:
+  workflow_dispatch:
+
+jobs:
+  debug:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: pip install requests
+      - name: Run debug
+        env:
+          WB_VIZ_API_KEY: ${{ secrets.WB_VIZ_API_KEY }}
+        run: python wb/debug_srid_match.py
