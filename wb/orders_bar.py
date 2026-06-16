@@ -192,7 +192,8 @@ def main():
     fbs_statuses = fetch_fbs_statuses(api_key)
     print(f"FBS статусов загружено: {len(fbs_statuses)}")
 
-    delivered_srids = fetch_delivered_srids(api_key, date_from)
+    date_from_sales = (now - timedelta(days=90)).strftime("%Y-%m-%dT00:00:00")
+    delivered_srids = fetch_delivered_srids(api_key, date_from_sales)
     print(f"FBO доставленных: {len(delivered_srids)}")
 
     rows = fetch_orders(api_key, brand_map, fbs_statuses, delivered_srids)
