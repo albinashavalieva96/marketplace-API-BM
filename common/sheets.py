@@ -12,16 +12,17 @@ SCOPES = [
 RETURNS_HEADERS = [
     "Дата заказа",
     "Артикул WB",
+    "Предмет",
     "Статус",
+    "Тип возврата",
     "Причина",
     "Srid",
+    "Готов к выдаче",
     "Забрали",
-    "Тип",
-    "Номер сборочного задания",
-    "Сумма",
+    "Стикер",
 ]
 
-IDX_RETURNS_KEY  = 4  # Srid
+IDX_RETURNS_KEY  = 6  # Srid
 IDX_RETURNS_DATE = 0  # Дата заказа
 
 OZON_RETURNS_HEADERS = [

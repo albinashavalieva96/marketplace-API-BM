@@ -8,7 +8,7 @@ from common.sheets import write_returns_sheet
 
 SPREADSHEET_ID = "1f5I82g5Nmy3AMn9s0AWta-Hc0HoHSAi9BWlSomzoppM"
 SHEET_NAME = "API - WB Бар - Возвраты"
-DAYS_BACK = 180
+DAYS_BACK = 90
 
 
 def fmt_dt(value):
@@ -17,44 +17,45 @@ def fmt_dt(value):
     return str(value)[:19].replace("T", " ")
 
 
-def fmt_num(value, decimals=2):
-    try:
-        return str(round(float(str(value).replace(",", ".").replace(" ", "")), decimals)).replace(".", ",")
-    except (ValueError, TypeError):
-        return ""
-
-
 def fetch_returns(api_key):
     now = datetime.now(timezone.utc)
-    date_from = (now - timedelta(days=DAYS_BACK)).strftime("%Y-%m-%dT00:00:00")
+    date_from = (now - timedelta(days=DAYS_BACK)).strftime("%Y-%m-%d")
+    date_to = now.strftime("%Y-%m-%d")
 
-    r = requests.get(
-        "https://statistics-api.wildberries.ru/api/v1/supplier/sales",
-        headers={"Authorization": f"Bearer {api_key}"},
-        params={"dateFrom": date_from, "flag": 0},
-        timeout=120,
-    )
-    if r.status_code != 200:
-        print(f"Ошибка WB sales: {r.status_code} — {r.text[:300]}")
-        return []
-
-    supply_type_map = {"Склад WB": "FBO"}
     rows = []
-    for s in r.json():
-        if not str(s.get("saleID", "")).startswith("R"):
-            continue
-        supply_type = supply_type_map.get(s.get("warehouseType", ""), "FBS")
-        rows.append([
-            fmt_dt(s.get("date", "")),
-            s.get("supplierArticle", ""),
-            "",
-            "",
-            s.get("srid", ""),
-            "",
-            supply_type,
-            s.get("gNumber", ""),
-            fmt_num(s.get("finishedPrice", "")),
-        ])
+    page = 1
+
+    while True:
+        r = requests.get(
+            "https://seller-analytics-api.wildberries.ru/api/v1/analytics/goods-return",
+            headers={"Authorization": f"Bearer {api_key}"},
+            params={"dateFrom": date_from, "dateTo": date_to, "page": page},
+            timeout=60,
+        )
+        if r.status_code != 200:
+            print(f"Ошибка goods-return: {r.status_code} — {r.text[:300]}")
+            break
+
+        records = r.json().get("report", [])
+        print(f"  Страница {page}: {len(records)} записей")
+        if not records:
+            break
+
+        for rec in records:
+            rows.append([
+                fmt_dt(rec.get("orderDt", "")),
+                str(rec.get("nmId", "")),
+                rec.get("subjectName", ""),
+                rec.get("status", ""),
+                rec.get("returnType", ""),
+                rec.get("reason", ""),
+                rec.get("srid", ""),
+                fmt_dt(rec.get("readyToReturnDt", "")),
+                fmt_dt(rec.get("completedDt", "")),
+                rec.get("stickerId", ""),
+            ])
+
+        page += 1
 
     return rows
 
