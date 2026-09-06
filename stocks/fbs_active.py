@@ -22,30 +22,24 @@ WB_STATUS_RU = {
     "defect": "Брак",
     "part_delivered_by_client": "Частично доставлен",
 }
-WB_INACTIVE = {"sold", "canceled", "canceled_by_client", "defect"}
+# Только "waiting" нужно собирать; sorted/ready_for_pickup уже едут
+WB_ACTIVE = {"waiting"}
 
 OZON_STATUS_RU = {
     "awaiting_approve": "Ожидает подтверждения",
     "awaiting_packaging": "Ожидает упаковки",
     "awaiting_deliver": "Ожидает отгрузки",
-    "delivering": "Доставляется",
-    "delivered": "Доставлено",
-    "cancelled": "Отменено",
-    "not_accepted": "Не принято на сортировке",
 }
-OZON_INACTIVE = {"delivered", "cancelled"}
+# delivering/delivered/cancelled/not_accepted — не показываем
+OZON_ACTIVE = set(OZON_STATUS_RU.keys())
 
 YM_STATUS_RU = {
-    "CANCELLED": "Отменено",
-    "DELIVERED": "Доставлено",
-    "DELIVERY": "Доставляется",
-    "PICKUP": "Пункт выдачи",
     "PROCESSING": "В обработке",
     "PENDING": "Ожидает подтверждения",
     "UNPAID": "Ожидает оплаты",
-    "CANCELLED_IN_DELIVERY": "Отменен при доставке",
 }
-YM_INACTIVE = {"CANCELLED", "DELIVERED", "CANCELLED_IN_DELIVERY"}
+# DELIVERY/PICKUP/DELIVERED/CANCELLED — не показываем
+YM_ACTIVE = set(YM_STATUS_RU.keys())
 
 
 def fmt_dt(value):
@@ -79,10 +73,18 @@ def write_sheet(rows):
     try:
         ws = spreadsheet.worksheet(SHEET_NAME)
     except gspread.WorksheetNotFound:
-        ws = spreadsheet.add_worksheet(SHEET_NAME, rows=1000, cols=len(HEADERS))
+        ws = spreadsheet.add_worksheet(SHEET_NAME, rows=1000, cols=len(HEADERS) + 1)
 
-    all_rows = [HEADERS] + rows
-    ws.resize(rows=max(len(all_rows), 1), cols=len(HEADERS))
+    now = datetime.now(timezone.utc).astimezone(timezone(timedelta(hours=3)))
+    service = ["Обновлен:", now.strftime("%Y-%m-%d"), now.strftime("%H:%M")]
+
+    header_row = [""] + HEADERS
+    all_rows = [header_row]
+    for i, data_row in enumerate(rows):
+        service_cell = service[i] if i < len(service) else ""
+        all_rows.append([service_cell] + list(data_row))
+
+    ws.resize(rows=max(len(all_rows), 1), cols=len(HEADERS) + 1)
     ws.update("A1", all_rows)
     print(f"Записано: {len(rows)} строк → '{SHEET_NAME}'")
 
@@ -132,9 +134,9 @@ def fetch_wb(api_key, cabinet_name):
     rows = []
     for o in all_orders:
         wb_status = status_map.get(o["id"], "")
-        if wb_status in WB_INACTIVE:
+        if wb_status not in WB_ACTIVE:
             continue
-        status = WB_STATUS_RU.get(wb_status, "В работе") if wb_status else "В работе"
+        status = WB_STATUS_RU.get(wb_status, "Ожидает")
         rows.append([
             cabinet_name,
             o.get("orderUid", str(o.get("id", ""))),
@@ -177,7 +179,7 @@ def fetch_ozon(client_id, api_key, cabinet_name):
             break
         postings = r.json().get("result", {}).get("postings", [])
         for posting in postings:
-            if posting.get("status", "") in OZON_INACTIVE:
+            if posting.get("status", "") not in OZON_ACTIVE:
                 continue
             status = OZON_STATUS_RU.get(posting.get("status", ""), posting.get("status", ""))
             for product in posting.get("products", []):
@@ -219,7 +221,7 @@ def fetch_ym(api_token, campaign_id, cabinet_name):
         orders = result.get("orders", [])
         for order in orders:
             status = order.get("status", "")
-            if status in YM_INACTIVE:
+            if status not in YM_ACTIVE:
                 continue
             status_ru = YM_STATUS_RU.get(status, status)
             for item in order.get("items", []):

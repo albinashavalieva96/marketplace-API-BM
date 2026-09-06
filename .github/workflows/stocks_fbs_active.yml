@@ -2,7 +2,7 @@ name: Остатки — FBS в работе
 
 on:
   schedule:
-    - cron: '0 */2 * * *'
+    - cron: '0 * * * *'
   workflow_dispatch:
 
 jobs:
