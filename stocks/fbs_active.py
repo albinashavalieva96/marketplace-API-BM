@@ -7,7 +7,7 @@ from datetime import datetime, timedelta, timezone
 import gspread
 from google.oauth2.service_account import Credentials
 
-SPREADSHEET_ID = "1IZ44h-TG8kPSMZEka9XeWQ9iWluwjgO3AgYLaR-ArVc"
+SPREADSHEET_ID = "1f5I82g5Nmy3AMn9s0AWta-Hc0HoHSAi9BWlSomzoppM"
 SHEET_NAME = "FBS в работе"
 DAYS_BACK = 30
 
