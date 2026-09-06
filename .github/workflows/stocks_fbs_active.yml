@@ -1,0 +1,30 @@
+name: Остатки — FBS в работе
+
+on:
+  schedule:
+    - cron: '0 */2 * * *'
+  workflow_dispatch:
+
+jobs:
+  fbs-active:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: pip install -r requirements.txt
+      - name: Run FBS active orders
+        env:
+          WB_VIZ_API_KEY: ${{ secrets.WB_VIZ_API_KEY }}
+          WB_BAR_API_KEY: ${{ secrets.WB_BAR_API_KEY }}
+          OZON_BM_CLIENT_ID: ${{ secrets.OZON_BM_CLIENT_ID }}
+          OZON_BM_API_KEY: ${{ secrets.OZON_BM_API_KEY }}
+          OZON_CF_CLIENT_ID: ${{ secrets.OZON_CF_CLIENT_ID }}
+          OZON_CF_API_KEY: ${{ secrets.OZON_CF_API_KEY }}
+          YM_VIZ_API_TOKEN: ${{ secrets.YM_VIZ_API_TOKEN }}
+          YM_BAR_API_TOKEN: ${{ secrets.YM_BAR_API_TOKEN }}
+          GOOGLE_CREDENTIALS: ${{ secrets.GOOGLE_CREDENTIALS }}
+        run: python stocks/fbs_active.py
