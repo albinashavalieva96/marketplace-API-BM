@@ -1,6 +1,5 @@
 import json
 import os
-import sys
 import requests
 from datetime import datetime, timedelta, timezone
 
@@ -88,10 +87,12 @@ def write_sheet(rows):
     print(f"Записано: {len(rows)} строк → '{SHEET_NAME}'")
 
 
-def _wb_fbs_statuses(api_key):
+def fetch_wb(api_key, cabinet_name):
+    """Активные FBS заказы напрямую из Marketplace API (реальное время)."""
     headers = {"Authorization": f"Bearer {api_key}"}
     all_orders = []
     next_cursor = 0
+
     for _ in range(20):
         r = requests.get(
             "https://marketplace-api.wildberries.ru/api/v3/orders",
@@ -100,6 +101,7 @@ def _wb_fbs_statuses(api_key):
             timeout=60,
         )
         if r.status_code != 200:
+            print(f"Ошибка WB {cabinet_name} /orders: {r.status_code}")
             break
         data = r.json()
         orders = data.get("orders", [])
@@ -109,78 +111,37 @@ def _wb_fbs_statuses(api_key):
             break
 
     if not all_orders:
-        return {}
+        print(f"{cabinet_name}: 0 заказов")
+        return []
 
     status_map = {}
     for i in range(0, len(all_orders), 1000):
         batch = all_orders[i:i + 1000]
-        uid_by_id = {o["id"]: o["orderUid"] for o in batch}
+        ids = [o["id"] for o in batch]
         r = requests.post(
             "https://marketplace-api.wildberries.ru/api/v3/orders/status",
             headers=headers,
-            json={"orders": list(uid_by_id.keys())},
+            json={"orders": ids},
             timeout=60,
         )
         if r.status_code != 200:
             continue
         for s in r.json().get("orders", []):
-            uid = uid_by_id.get(s["id"], "")
-            if uid:
-                status_map[uid] = s.get("wbStatus", "")
-    return status_map
-
-
-def fetch_wb(api_key, cabinet_name):
-    now = datetime.now(timezone.utc)
-    date_from = (now - timedelta(days=DAYS_BACK)).strftime("%Y-%m-%dT00:00:00")
-
-    fbs_statuses = _wb_fbs_statuses(api_key)
-
-    r_sales = requests.get(
-        "https://statistics-api.wildberries.ru/api/v1/supplier/sales",
-        headers={"Authorization": f"Bearer {api_key}"},
-        params={"dateFrom": date_from, "flag": 0},
-        timeout=120,
-    )
-    delivered_srids = set()
-    if r_sales.status_code == 200:
-        delivered_srids = {
-            s["srid"] for s in r_sales.json()
-            if str(s.get("saleID", "")).startswith("S") and s.get("srid")
-        }
-
-    r_orders = requests.get(
-        "https://statistics-api.wildberries.ru/api/v1/supplier/orders",
-        headers={"Authorization": f"Bearer {api_key}"},
-        params={"dateFrom": date_from, "flag": 0},
-        timeout=120,
-    )
-    if r_orders.status_code != 200:
-        print(f"Ошибка WB {cabinet_name}: {r_orders.status_code}")
-        return []
+            status_map[s["id"]] = s.get("wbStatus", "")
 
     rows = []
-    for o in r_orders.json():
-        if o.get("warehouseType") == "Склад WB":
-            continue
-        if o.get("isCancel"):
-            continue
-        srid = o.get("srid", "")
-        if srid in delivered_srids:
-            continue
-        parts = srid.split(".")
-        order_uid = parts[1] if len(parts) > 1 else ""
-        wb_status = fbs_statuses.get(order_uid, "")
+    for o in all_orders:
+        wb_status = status_map.get(o["id"], "")
         if wb_status in WB_INACTIVE:
             continue
         status = WB_STATUS_RU.get(wb_status, "В работе") if wb_status else "В работе"
         rows.append([
             cabinet_name,
-            srid,
-            o.get("supplierArticle", ""),
-            o.get("quantity") or 1,
+            o.get("orderUid", str(o.get("id", ""))),
+            o.get("article", ""),
+            1,
             status,
-            fmt_dt(o.get("date", "")),
+            fmt_dt(o.get("createdAt", "")),
         ])
 
     print(f"{cabinet_name}: {len(rows)} активных FBS")
