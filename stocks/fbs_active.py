@@ -10,7 +10,7 @@ SPREADSHEET_ID = "1f5I82g5Nmy3AMn9s0AWta-Hc0HoHSAi9BWlSomzoppM"
 SHEET_NAME = "FBS в работе"
 DAYS_BACK = 30
 
-HEADERS = ["Кабинет", "Номер отправления", "Артикул", "Количество", "Статус", "Дата создания"]
+HEADERS = ["Кабинет", "Номер заказа", "Номер отправления", "Артикул", "Количество", "Статус", "Дата создания"]
 
 WB_STATUS_RU = {
     "waiting": "Ожидает",
@@ -139,7 +139,8 @@ def fetch_wb(api_key, cabinet_name):
         status = WB_STATUS_RU.get(wb_status, "Ожидает")
         rows.append([
             cabinet_name,
-            o.get("orderUid", str(o.get("id", ""))),
+            str(o.get("id", "")),
+            o.get("orderUid", ""),
             o.get("article", ""),
             1,
             status,
@@ -185,6 +186,7 @@ def fetch_ozon(client_id, api_key, cabinet_name):
             for product in posting.get("products", []):
                 rows.append([
                     cabinet_name,
+                    posting.get("order_number", ""),
                     posting.get("posting_number", ""),
                     product.get("offer_id", ""),
                     product.get("quantity", 0),
@@ -227,6 +229,7 @@ def fetch_ym(api_token, campaign_id, cabinet_name):
             for item in order.get("items", []):
                 rows.append([
                     cabinet_name,
+                    str(order.get("id", "")),
                     f"{order.get('id', '')}_{item.get('id', '')}",
                     item.get("offerId", ""),
                     item.get("count", 0),
