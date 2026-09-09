@@ -9,27 +9,28 @@ date_to = now.strftime("%Y-%m-%d")
 
 print(f"Период: {date_from} – {date_to}")
 
-r = requests.get(
-    "https://statistics-api.wildberries.ru/api/v1/supplier/reportDetailByPeriod",
-    headers={"Authorization": f"Bearer {api_key}"},
-    params={"dateFrom": date_from, "dateTo": date_to, "rrdid": 0},
-    timeout=120,
-)
-print(f"Статус: {r.status_code}")
+endpoints = [
+    ("statistics-api.wildberries.ru", "/api/v1/supplier/reportDetailByPeriod"),
+    ("statistics-api.wildberries.ru", "/api/v5/supplier/reportDetailByPeriod"),
+    ("seller-analytics-api.wildberries.ru", "/api/v1/supplier/reportDetailByPeriod"),
+    ("seller-analytics-api.wildberries.ru", "/api/v2/supplier/reportDetailByPeriod"),
+]
 
-if r.status_code != 200:
-    print(f"Ошибка: {r.text[:500]}")
-else:
-    rows = r.json()
-    print(f"Строк: {len(rows)}")
-    if rows:
-        print("Пример первой строки (все поля):")
-        for k, v in rows[0].items():
-            print(f"  {k}: {v}")
-        print()
-        print("Уникальные sa_name (первые 10):")
-        articles = list({r.get("sa_name", "") for r in rows if r.get("sa_name")})[:10]
-        for a in articles:
-            print(f"  {a}")
+for host, path in endpoints:
+    url = f"https://{host}{path}"
+    r = requests.get(
+        url,
+        headers={"Authorization": f"Bearer {api_key}"},
+        params={"dateFrom": date_from, "dateTo": date_to, "rrdid": 0},
+        timeout=30,
+    )
+    print(f"{url} → {r.status_code}")
+    if r.status_code == 200:
+        rows = r.json() if isinstance(r.json(), list) else []
+        print(f"  Строк: {len(rows)}")
+        if rows:
+            print(f"  Поля: {list(rows[0].keys())}")
+            print(f"  Пример sa_name: {rows[0].get('sa_name', '???')}")
+        break
     else:
-        print("Пустой ответ")
+        print(f"  {r.text[:200]}")
