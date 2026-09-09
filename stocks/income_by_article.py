@@ -92,7 +92,7 @@ def fetch_wb(api_key, cabinet_name, date_from, date_to):
     }
     while True:
         r = requests.get(
-            "https://statistics-api.wildberries.ru/api/v1/supplier/reportDetailByPeriod",
+            "https://statistics-api.wildberries.ru/api/v5/supplier/reportDetailByPeriod",
             headers={"Authorization": f"Bearer {api_key}"},
             params={**params_base, "rrdid": rrdid},
             timeout=120,
