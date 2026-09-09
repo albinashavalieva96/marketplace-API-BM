@@ -1,6 +1,7 @@
 import os
 import requests
 from datetime import datetime, timedelta, timezone
+from collections import defaultdict
 
 api_key = os.environ["WB_BAR_API_KEY"]
 now = datetime.now(timezone.utc)
@@ -9,28 +10,30 @@ date_to = now.strftime("%Y-%m-%d")
 
 print(f"Период: {date_from} – {date_to}")
 
-endpoints = [
-    ("statistics-api.wildberries.ru", "/api/v1/supplier/reportDetailByPeriod"),
-    ("statistics-api.wildberries.ru", "/api/v5/supplier/reportDetailByPeriod"),
-    ("seller-analytics-api.wildberries.ru", "/api/v1/supplier/reportDetailByPeriod"),
-    ("seller-analytics-api.wildberries.ru", "/api/v2/supplier/reportDetailByPeriod"),
-]
+r = requests.get(
+    "https://statistics-api.wildberries.ru/api/v5/supplier/reportDetailByPeriod",
+    headers={"Authorization": f"Bearer {api_key}"},
+    params={"dateFrom": date_from, "dateTo": date_to, "rrdid": 0},
+    timeout=120,
+)
+print(f"Статус: {r.status_code}")
+rows = r.json() if r.status_code == 200 else []
+print(f"Строк всего: {len(rows)}")
 
-for host, path in endpoints:
-    url = f"https://{host}{path}"
-    r = requests.get(
-        url,
-        headers={"Authorization": f"Bearer {api_key}"},
-        params={"dateFrom": date_from, "dateTo": date_to, "rrdid": 0},
-        timeout=30,
-    )
-    print(f"{url} → {r.status_code}")
-    if r.status_code == 200:
-        rows = r.json() if isinstance(r.json(), list) else []
-        print(f"  Строк: {len(rows)}")
-        if rows:
-            print(f"  Поля: {list(rows[0].keys())}")
-            print(f"  Пример sa_name: {rows[0].get('sa_name', '???')}")
-        break
-    else:
-        print(f"  {r.text[:200]}")
+# Группировка по типу операции
+by_oper = defaultdict(int)
+for row in rows:
+    by_oper[row.get("supplier_oper_name", "")] += 1
+print("\nТипы операций:")
+for oper, cnt in sorted(by_oper.items(), key=lambda x: -x[1]):
+    print(f"  {oper}: {cnt}")
+
+# Примеры строк с количеством > 0
+print("\nПримеры строк с quantity > 0:")
+examples = [r for r in rows if int(r.get("quantity", 0) or 0) > 0][:5]
+for ex in examples:
+    print(f"  sa_name={ex.get('sa_name')}  qty={ex.get('quantity')}  ppvz_for_pay={ex.get('ppvz_for_pay')}  oper={ex.get('supplier_oper_name')}")
+
+# Строки с quantity = 0
+zero_qty = sum(1 for r in rows if int(r.get("quantity", 0) or 0) == 0)
+print(f"\nСтрок с quantity=0: {zero_qty} из {len(rows)}")
