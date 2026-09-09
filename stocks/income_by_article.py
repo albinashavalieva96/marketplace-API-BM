@@ -1,5 +1,6 @@
 import json
 import os
+import time
 import requests
 from collections import defaultdict
 from datetime import datetime, timedelta, timezone
@@ -91,12 +92,19 @@ def fetch_wb(api_key, cabinet_name, date_from, date_to):
         "dateTo": date_to.strftime("%Y-%m-%d"),
     }
     while True:
-        r = requests.get(
-            "https://statistics-api.wildberries.ru/api/v5/supplier/reportDetailByPeriod",
-            headers={"Authorization": f"Bearer {api_key}"},
-            params={**params_base, "rrdid": rrdid},
-            timeout=120,
-        )
+        for attempt in range(5):
+            r = requests.get(
+                "https://statistics-api.wildberries.ru/api/v5/supplier/reportDetailByPeriod",
+                headers={"Authorization": f"Bearer {api_key}"},
+                params={**params_base, "rrdid": rrdid},
+                timeout=120,
+            )
+            if r.status_code == 429:
+                wait = 60 * (attempt + 1)
+                print(f"WB {cabinet_name}: 429, жду {wait} сек (попытка {attempt + 1}/5)...")
+                time.sleep(wait)
+                continue
+            break
         if r.status_code != 200:
             print(f"Ошибка WB {cabinet_name}: {r.status_code}")
             break
