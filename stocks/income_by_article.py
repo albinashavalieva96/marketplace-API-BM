@@ -92,19 +92,21 @@ def fetch_wb(api_key, cabinet_name, date_from, date_to):
         "dateTo": date_to.strftime("%Y-%m-%d"),
     }
     while True:
-        for attempt in range(5):
+        r = requests.get(
+            "https://statistics-api.wildberries.ru/api/v5/supplier/reportDetailByPeriod",
+            headers={"Authorization": f"Bearer {api_key}"},
+            params={**params_base, "rrdid": rrdid},
+            timeout=120,
+        )
+        if r.status_code == 429:
+            print(f"WB {cabinet_name}: 429, жду 65 сек...")
+            time.sleep(65)
             r = requests.get(
                 "https://statistics-api.wildberries.ru/api/v5/supplier/reportDetailByPeriod",
                 headers={"Authorization": f"Bearer {api_key}"},
                 params={**params_base, "rrdid": rrdid},
                 timeout=120,
             )
-            if r.status_code == 429:
-                wait = 60 * (attempt + 1)
-                print(f"WB {cabinet_name}: 429, жду {wait} сек (попытка {attempt + 1}/5)...")
-                time.sleep(wait)
-                continue
-            break
         if r.status_code != 200:
             print(f"Ошибка WB {cabinet_name}: {r.status_code}")
             break
@@ -229,6 +231,8 @@ def main():
 
     income = {}
     income["WB Виз"] = fetch_wb(os.environ["WB_VIZ_API_KEY"], "WB Виз", date_from, date_to)
+    print("Пауза 65 сек между WB кабинетами (лимит API)...")
+    time.sleep(65)
     income["WB Бар"] = fetch_wb(os.environ["WB_BAR_API_KEY"], "WB Бар", date_from, date_to)
     income["Ozon BM"] = fetch_ozon(os.environ["OZON_BM_CLIENT_ID"], os.environ["OZON_BM_API_KEY"], "Ozon BM", date_from, date_to)
     income["Ozon CF"] = fetch_ozon(os.environ["OZON_CF_CLIENT_ID"], os.environ["OZON_CF_API_KEY"], "Ozon CF", date_from, date_to)
