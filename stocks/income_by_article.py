@@ -11,6 +11,8 @@ SPREADSHEET_ID = "1f5I82g5Nmy3AMn9s0AWta-Hc0HoHSAi9BWlSomzoppM"
 SHEET_NAME = "Приход по артикулам"
 DAYS_BACK = 30
 
+CABINETS = ["WB Виз", "WB Бар", "Ozon BM", "Ozon CF", "ЯМ Виз", "ЯМ Бар"]
+
 
 def fmt_money(value):
     try:
@@ -20,8 +22,8 @@ def fmt_money(value):
         return ""
 
 
-def write_sheet(data_by_article, date_from_str, date_to_str):
-    """data_by_article = {article: {"amount": float, "qty": int}}"""
+def write_sheet(income, date_from_str, date_to_str):
+    """income = {cabinet: {article: {"amount": float, "qty": int}}}"""
     creds_dict = json.loads(os.environ["GOOGLE_CREDENTIALS"])
     creds = Credentials.from_service_account_info(
         creds_dict,
@@ -29,27 +31,46 @@ def write_sheet(data_by_article, date_from_str, date_to_str):
     )
     client = gspread.authorize(creds)
     spreadsheet = client.open_by_key(SPREADSHEET_ID)
+    n_cols = 1 + len(CABINETS) * 2
     try:
         ws = spreadsheet.worksheet(SHEET_NAME)
     except gspread.WorksheetNotFound:
-        ws = spreadsheet.add_worksheet(SHEET_NAME, rows=5000, cols=5)
+        ws = spreadsheet.add_worksheet(SHEET_NAME, rows=5000, cols=n_cols)
 
     now = datetime.now(timezone.utc).astimezone(timezone(timedelta(hours=3)))
 
+    # Заголовки: Артикул | WB Виз шт | WB Виз за шт | WB Бар шт | WB Бар за шт | ...
+    header1 = ["Артикул"]
+    header2 = [""]
+    for cab in CABINETS:
+        header1 += [cab, ""]
+        header2 += ["шт", "за 1 шт"]
+
+    # Собираем все артикулы
+    all_articles = set()
+    for data in income.values():
+        all_articles.update(data.keys())
+
     rows = []
-    for article, d in data_by_article.items():
-        amount = d["amount"]
-        qty = d["qty"]
-        avg = round(amount / qty, 2) if qty > 0 else 0.0
-        rows.append((amount, [article, qty, fmt_money(amount), fmt_money(avg)]))
+    for article in sorted(all_articles):
+        total_amount = sum(income.get(cab, {}).get(article, {}).get("amount", 0) for cab in CABINETS)
+        row = [article]
+        for cab in CABINETS:
+            d = income.get(cab, {}).get(article, {})
+            amt = d.get("amount", 0.0)
+            qty = d.get("qty", 0)
+            avg = round(amt / qty, 2) if qty > 0 else 0.0
+            row += [qty if qty else "", fmt_money(avg)]
+        rows.append((total_amount, row))
 
     rows.sort(key=lambda x: x[0], reverse=True)
 
     sheet_rows = [
-        ["Обновлен:", now.strftime("%Y-%m-%d"), now.strftime("%H:%M"), "", ""],
-        [f"Период: {date_from_str} – {date_to_str}", "", "", "", ""],
-        ["", "", "", "", ""],
-        ["Артикул", "Продано шт", "Приход итого", "Приход за 1 шт (среднее)"],
+        ["Обновлен:", now.strftime("%Y-%m-%d"), now.strftime("%H:%M")] + [""] * (n_cols - 3),
+        [f"Период: {date_from_str} – {date_to_str}"] + [""] * (n_cols - 1),
+        [""] * n_cols,
+        header1,
+        header2,
     ]
     for _, row in rows:
         sheet_rows.append(row)
@@ -198,22 +219,15 @@ def main():
     print(f"Запуск: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
     print(f"Период: {date_from_str} – {date_to_str}")
 
-    combined = defaultdict(lambda: {"amount": 0.0, "qty": 0})
+    income = {}
+    income["WB Виз"] = fetch_wb(os.environ["WB_VIZ_API_KEY"], "WB Виз", date_from, date_to)
+    income["WB Бар"] = fetch_wb(os.environ["WB_BAR_API_KEY"], "WB Бар", date_from, date_to)
+    income["Ozon BM"] = fetch_ozon(os.environ["OZON_BM_CLIENT_ID"], os.environ["OZON_BM_API_KEY"], "Ozon BM", date_from, date_to)
+    income["Ozon CF"] = fetch_ozon(os.environ["OZON_CF_CLIENT_ID"], os.environ["OZON_CF_API_KEY"], "Ozon CF", date_from, date_to)
+    income["ЯМ Виз"] = fetch_ym(os.environ["YM_VIZ_API_TOKEN"], [22110675, 56291750], "ЯМ Виз", date_from, date_to)
+    income["ЯМ Бар"] = fetch_ym(os.environ["YM_BAR_API_TOKEN"], [147572980], "ЯМ Бар", date_from, date_to)
 
-    def merge(src):
-        for article, d in src.items():
-            combined[article]["amount"] += d["amount"]
-            combined[article]["qty"] += d["qty"]
-
-    merge(fetch_wb(os.environ["WB_VIZ_API_KEY"], "WB Виз", date_from, date_to))
-    merge(fetch_wb(os.environ["WB_BAR_API_KEY"], "WB Бар", date_from, date_to))
-    merge(fetch_ozon(os.environ["OZON_BM_CLIENT_ID"], os.environ["OZON_BM_API_KEY"], "Ozon BM", date_from, date_to))
-    merge(fetch_ozon(os.environ["OZON_CF_CLIENT_ID"], os.environ["OZON_CF_API_KEY"], "Ozon CF", date_from, date_to))
-    merge(fetch_ym(os.environ["YM_VIZ_API_TOKEN"], [22110675, 56291750], "ЯМ Виз", date_from, date_to))
-    merge(fetch_ym(os.environ["YM_BAR_API_TOKEN"], [147572980], "ЯМ Бар", date_from, date_to))
-
-    print(f"Итого артикулов: {len(combined)}")
-    write_sheet(dict(combined), date_from_str, date_to_str)
+    write_sheet(income, date_from_str, date_to_str)
     print("Готово!")
 
 
