@@ -84,44 +84,31 @@ def write_sheet(income, date_from_str, date_to_str):
 # ── WB ──────────────────────────────────────────────────────────────────────
 
 def fetch_wb(api_key, cabinet_name, date_from, date_to):
-    """ppvz_for_pay и quantity из детального отчёта WB."""
+    """forPay и количество из API продаж WB. S* = продажа, R* = возврат."""
+    r = requests.get(
+        "https://statistics-api.wildberries.ru/api/v1/supplier/sales",
+        headers={"Authorization": f"Bearer {api_key}"},
+        params={"dateFrom": date_from.strftime("%Y-%m-%dT00:00:00"), "flag": 0},
+        timeout=120,
+    )
+    if r.status_code != 200:
+        print(f"Ошибка WB {cabinet_name}: {r.status_code}")
+        return {}
     result = defaultdict(lambda: {"amount": 0.0, "qty": 0})
-    rrdid = 0
-    params_base = {
-        "dateFrom": date_from.strftime("%Y-%m-%d"),
-        "dateTo": date_to.strftime("%Y-%m-%d"),
-    }
-    while True:
-        r = requests.get(
-            "https://statistics-api.wildberries.ru/api/v5/supplier/reportDetailByPeriod",
-            headers={"Authorization": f"Bearer {api_key}"},
-            params={**params_base, "rrdid": rrdid},
-            timeout=120,
-        )
-        if r.status_code == 429:
-            print(f"WB {cabinet_name}: 429, жду 65 сек...")
-            time.sleep(65)
-            r = requests.get(
-                "https://statistics-api.wildberries.ru/api/v5/supplier/reportDetailByPeriod",
-                headers={"Authorization": f"Bearer {api_key}"},
-                params={**params_base, "rrdid": rrdid},
-                timeout=120,
-            )
-        if r.status_code != 200:
-            print(f"Ошибка WB {cabinet_name}: {r.status_code}")
-            break
-        rows = r.json()
-        if not rows:
-            break
-        for row in rows:
-            article = row.get("sa_name", "")
-            if not article:
-                continue
-            result[article]["amount"] += float(row.get("ppvz_for_pay", 0) or 0)
-            result[article]["qty"] += int(row.get("quantity", 0) or 0)
-        rrdid = max(row.get("rrd_id", 0) for row in rows) + 1
-        if len(rows) < 100000:
-            break
+    for row in r.json():
+        article = row.get("supplierArticle", "")
+        if not article:
+            continue
+        sale_id = str(row.get("saleID", ""))
+        for_pay = float(row.get("forPay", 0) or 0)
+        if sale_id.startswith("S"):
+            result[article]["amount"] += for_pay
+            result[article]["qty"] += 1
+        elif sale_id.startswith("R"):
+            result[article]["amount"] -= for_pay
+            result[article]["qty"] -= 1
+    # убираем артикулы с нулевым или отрицательным qty
+    result = {a: d for a, d in result.items() if d["qty"] > 0}
     print(f"{cabinet_name}: {len(result)} артикулов")
     return result
 
@@ -231,8 +218,6 @@ def main():
 
     income = {}
     income["WB Виз"] = fetch_wb(os.environ["WB_VIZ_API_KEY"], "WB Виз", date_from, date_to)
-    print("Пауза 65 сек между WB кабинетами (лимит API)...")
-    time.sleep(65)
     income["WB Бар"] = fetch_wb(os.environ["WB_BAR_API_KEY"], "WB Бар", date_from, date_to)
     income["Ozon BM"] = fetch_ozon(os.environ["OZON_BM_CLIENT_ID"], os.environ["OZON_BM_API_KEY"], "Ozon BM", date_from, date_to)
     income["Ozon CF"] = fetch_ozon(os.environ["OZON_CF_CLIENT_ID"], os.environ["OZON_CF_API_KEY"], "Ozon CF", date_from, date_to)
