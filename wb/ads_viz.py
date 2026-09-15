@@ -53,15 +53,23 @@ def date_chunks(start, end, days=CHUNK_DAYS):
     return chunks
 
 
+def parse_article(campaign_name):
+    """Артикул — часть названия кампании до первого '_', без пробелов по краям.
+    'AKSS01_ПОИСК от 19.03.2026' -> 'AKSS01'; 'AKSS05 _Тюнер Simple ПОЛКИ' -> 'AKSS05'."""
+    return campaign_name.split("_", 1)[0].strip()
+
+
 def build_row(item):
     advert_id = item.get("advertId", "")
     upd_time = item.get("updTime", "")
+    campaign_name = item.get("campName", "")
     key = f"{advert_id}_{upd_time}_{item.get('updNum', 0)}"
     return [
         fmt_dt(upd_time),
         key,
         advert_id,
-        item.get("campName", ""),
+        campaign_name,
+        parse_article(campaign_name),
         ADVERT_TYPE_RU.get(item.get("advertType"), str(item.get("advertType", ""))),
         ADVERT_STATUS_RU.get(item.get("advertStatus"), str(item.get("advertStatus", ""))),
         fmt_num(item.get("updSum", "")),
