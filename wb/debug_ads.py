@@ -1,5 +1,6 @@
 import os
 import json
+import time
 import requests
 from datetime import datetime, timedelta, timezone
 
@@ -32,7 +33,9 @@ if r.status_code == 200:
 print(f"Уникальных advertId: {len(advert_ids)} — {advert_ids[:6]}")
 print()
 
-for test_id in advert_ids[:3]:
+for i, test_id in enumerate(advert_ids[:3]):
+    if i > 0:
+        time.sleep(20)
     r4 = requests.get(
         "https://advert-api.wildberries.ru/adv/v3/fullstats",
         headers=headers,
@@ -64,8 +67,8 @@ for test_id in advert_ids[:3]:
         print(f"  apps в этом дне: {len(apps)}")
         for app in apps:
             print(f"    appType={app.get('appType')} sum={app.get('sum')} ключи={list(app.keys())}")
-            nms = app.get("nm", [])
-            print(f"    nm-записей: {len(nms)}")
+            nms = app.get("nms", [])
+            print(f"    nms-записей: {len(nms)}")
             for nm in nms[:5]:
-                print(f"      nmId={nm.get('nmId')} sum={nm.get('sum')} name={nm.get('name')} views={nm.get('views')}")
+                print(f"      {json.dumps(nm, ensure_ascii=False)}")
     print()
