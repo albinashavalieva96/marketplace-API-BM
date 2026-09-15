@@ -1,0 +1,20 @@
+name: ЯМ — Debug реклама
+
+on:
+  workflow_dispatch:
+
+jobs:
+  debug:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: pip install requests
+      - name: Run debug
+        env:
+          YM_VIZ_API_TOKEN: ${{ secrets.YM_VIZ_API_TOKEN }}
+        run: python ym/debug_ads.py
