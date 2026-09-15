@@ -1,4 +1,5 @@
 import os
+import re
 import sys
 import requests
 from datetime import datetime, timedelta, timezone
@@ -53,10 +54,18 @@ def date_chunks(start, end, days=CHUNK_DAYS):
     return chunks
 
 
+DATE_SUFFIX_RE = re.compile(r"\s+от\s+\d{1,2}\.\d{1,2}\.\d{2,4}\s*$")
+
+
 def parse_article(campaign_name):
-    """Артикул — часть названия кампании до первого '_', без пробелов по краям.
-    'AKSS01_ПОИСК от 19.03.2026' -> 'AKSS01'; 'AKSS05 _Тюнер Simple ПОЛКИ' -> 'AKSS05'."""
-    return campaign_name.split("_", 1)[0].strip()
+    """Артикул — часть названия кампании до первого '_', без пробелов по краям
+    и без хвоста ' от ДД.ММ.ГГГГ', если он остался (когда в названии нет '_').
+    'AKSS01_ПОИСК от 19.03.2026' -> 'AKSS01'
+    'AKSS05 _Тюнер Simple ПОЛКИ' -> 'AKSS05'
+    'kapo-akss02 от 11.09.2025' -> 'kapo-akss02'"""
+    article = campaign_name.split("_", 1)[0].strip()
+    article = DATE_SUFFIX_RE.sub("", article).strip()
+    return article
 
 
 def build_row(item):
