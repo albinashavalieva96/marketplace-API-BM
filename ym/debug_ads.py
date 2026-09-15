@@ -1,4 +1,5 @@
 import os
+import json
 import requests
 from datetime import datetime, timedelta, timezone
 
@@ -9,58 +10,42 @@ now = datetime.now(timezone.utc)
 date_from = (now - timedelta(days=90)).strftime("%d-%m-%Y")
 date_to = now.strftime("%d-%m-%Y")
 
-# ЯМ Виз кампании
-campaign_ids = [22110675, 56291750]
+campaign_id = 22110675  # FBY Виз
 
 print(f"Период: {date_from} – {date_to}")
 print()
 
-# 1. Попробуем финансовый отчёт через stats/orders с финансовыми данными
-for campaign_id in campaign_ids:
-    print(f"=== Кампания {campaign_id} ===")
+# Подробно смотрим /stats/orders
+r = requests.post(
+    f"https://api.partner.market.yandex.ru/v2/campaigns/{campaign_id}/stats/orders",
+    headers=headers,
+    json={"dateFrom": date_from, "dateTo": date_to},
+    timeout=30,
+)
+print(f"POST /stats/orders → {r.status_code}")
+data = r.json().get("result", {})
+orders = data.get("orders", [])
+print(f"Заказов: {len(orders)}")
+if orders:
+    print("Поля первого заказа:")
+    print(json.dumps(orders[0], ensure_ascii=False, indent=2)[:2000])
 
-    # Статистика заказов с финансами
-    r = requests.post(
-        f"https://api.partner.market.yandex.ru/v2/campaigns/{campaign_id}/stats/orders",
-        headers=headers,
-        json={
-            "dateFrom": date_from,
-            "dateTo": date_to,
-        },
-        timeout=30,
-    )
-    print(f"POST /stats/orders → {r.status_code}")
+print()
+
+# Пробуем другие эндпоинты для рекламных расходов
+other_endpoints = [
+    ("GET", f"https://api.partner.market.yandex.ru/v2/campaigns/{campaign_id}/stats/skus", None),
+    ("POST", f"https://api.partner.market.yandex.ru/v2/campaigns/{campaign_id}/stats/show-sales", {"dateFrom": date_from, "dateTo": date_to}),
+    ("GET", f"https://api.partner.market.yandex.ru/v2/campaigns/{campaign_id}/promos", None),
+    ("POST", f"https://api.partner.market.yandex.ru/v2/businesses/0/promos", {"dateFrom": date_from}),
+]
+
+for method, url, body in other_endpoints:
+    path = url.split(".ru")[-1]
+    if method == "GET":
+        r = requests.get(url, headers=headers, timeout=15)
+    else:
+        r = requests.post(url, headers=headers, json=body, timeout=15)
+    print(f"{method} {path} → {r.status_code}")
     if r.status_code == 200:
-        data = r.json().get("result", {})
-        print(f"  Поля: {list(data.keys())[:10]}")
-
-    # Финансовые транзакции
-    r2 = requests.get(
-        f"https://api.partner.market.yandex.ru/v2/campaigns/{campaign_id}/billing/accounts",
-        headers=headers,
-        timeout=30,
-    )
-    print(f"GET /billing/accounts → {r2.status_code}")
-    if r2.status_code == 200:
-        print(f"  Ответ: {r2.text[:300]}")
-
-    # Расходы на продвижение
-    r3 = requests.get(
-        f"https://api.partner.market.yandex.ru/v2/campaigns/{campaign_id}/auction/recommendations",
-        headers=headers,
-        timeout=30,
-    )
-    print(f"GET /auction/recommendations → {r3.status_code}")
-
-    # Отчёт по рекламе
-    r4 = requests.post(
-        f"https://api.partner.market.yandex.ru/v2/campaigns/{campaign_id}/stats/main-boost",
-        headers=headers,
-        json={"dateFrom": date_from, "dateTo": date_to},
-        timeout=30,
-    )
-    print(f"POST /stats/main-boost → {r4.status_code}")
-    if r4.status_code == 200:
-        print(f"  Ответ: {r4.text[:300]}")
-
-    print()
+        print(f"  {r.text[:300]}")
