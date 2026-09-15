@@ -1,4 +1,4 @@
-name: WB Виз — Debug реклама
+name: WB — Debug реклама
 
 on:
   workflow_dispatch:
