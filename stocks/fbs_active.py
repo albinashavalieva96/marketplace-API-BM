@@ -84,7 +84,10 @@ def write_sheet(rows):
         service_cell = service[i] if i < len(service) else ""
         all_rows.append([service_cell] + list(data_row))
 
-    ws.resize(rows=max(len(all_rows), 1), cols=len(HEADERS) + 1)
+    # Строка 1 закреплена: нужна хотя бы одна незакреплённая строка, иначе Google не даёт сделать resize
+    while len(all_rows) < 2:
+        all_rows.append([""] * (len(HEADERS) + 1))
+    ws.resize(rows=len(all_rows), cols=len(HEADERS) + 1)
     ws.update("A1", all_rows)
     print(f"Записано: {len(rows)} строк → '{SHEET_NAME}'")
 
