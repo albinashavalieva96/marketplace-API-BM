@@ -164,25 +164,33 @@ def fetch_ozon(client_id, api_key, cabinet_name):
         "Content-Type": "application/json",
     }
     rows = []
-    offset = 0
-    while True:
+    seen = set()
+    cursor = ""
+    # /v3/posting/fbs/list Ozon отключил (404). В v4 страницы листаются по cursor, offset и dir не принимаются.
+    for _ in range(200):
+        body = {
+            "filter": {"since": date_from, "to": date_to},
+            "limit": 100,
+        }
+        if cursor:
+            body["cursor"] = cursor
         r = requests.post(
-            "https://api-seller.ozon.ru/v3/posting/fbs/list",
+            "https://api-seller.ozon.ru/v4/posting/fbs/list",
             headers=headers,
-            json={
-                "dir": "DESC",
-                "filter": {"since": date_from, "to": date_to, "status": ""},
-                "limit": 100,
-                "offset": offset,
-                "with": {"analytics_data": False, "financial_data": False},
-            },
+            json=body,
             timeout=30,
         )
         if r.status_code != 200:
-            print(f"Ошибка Ozon {cabinet_name}: {r.status_code}")
+            print(f"Ошибка Ozon {cabinet_name}: {r.status_code} {r.text[:300]}")
             break
-        postings = r.json().get("result", {}).get("postings", [])
+        data = r.json()
+        result = data.get("result", data)
+        postings = result if isinstance(result, list) else result.get("postings", [])
         for posting in postings:
+            number = posting.get("posting_number", "")
+            if number in seen:
+                continue
+            seen.add(number)
             if posting.get("status", "") not in OZON_ACTIVE:
                 continue
             status = OZON_STATUS_RU.get(posting.get("status", ""), posting.get("status", ""))
@@ -196,9 +204,11 @@ def fetch_ozon(client_id, api_key, cabinet_name):
                     status,
                     fmt_dt(posting.get("in_process_at", "")),
                 ])
-        if len(postings) < 100:
+        meta = result if isinstance(result, dict) else data
+        cursor = meta.get("cursor") or data.get("cursor") or ""
+        has_next = meta.get("has_next", data.get("has_next"))
+        if not postings or not cursor or has_next is False:
             break
-        offset += 100
 
     print(f"{cabinet_name}: {len(rows)} активных FBS")
     return rows
