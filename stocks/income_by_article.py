@@ -6,6 +6,9 @@ from collections import defaultdict
 from datetime import datetime, timedelta, timezone
 
 import gspread
+import sys
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+from common.ozon_fbs import v4_fbs_post
 from google.oauth2.service_account import Credentials
 
 SPREADSHEET_ID = "1f5I82g5Nmy3AMn9s0AWta-Hc0HoHSAi9BWlSomzoppM"
@@ -126,8 +129,8 @@ def fetch_ozon(client_id, api_key, cabinet_name, date_from, date_to):
     date_to_str = date_to.strftime("%Y-%m-%dT23:59:59.999Z")
     offset = 0
     while True:
-        r = requests.post(
-            "https://api-seller.ozon.ru/v3/posting/fbs/list",
+        r = v4_fbs_post(
+            "https://api-seller.ozon.ru/v4/posting/fbs/list",
             headers=_ozon_headers(client_id, api_key),
             json={
                 "dir": "DESC",

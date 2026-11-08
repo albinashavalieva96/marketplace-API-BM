@@ -8,6 +8,7 @@ from datetime import datetime, timedelta, timezone
 
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from common.sheets import merge_and_write, DATA_HEADERS
+from common.ozon_fbs import v4_fbs_post
 
 SPREADSHEET_ID = "1f5I82g5Nmy3AMn9s0AWta-Hc0HoHSAi9BWlSomzoppM"
 FBS_SHEET = "API - Ozon CF - Заказы FBS"
@@ -69,8 +70,8 @@ def fetch_fbs(client_id, api_key):
             "offset": offset,
             "with": {"analytics_data": False, "financial_data": True},
         }
-        r = requests.post(
-            "https://api-seller.ozon.ru/v3/posting/fbs/list",
+        r = v4_fbs_post(
+            "https://api-seller.ozon.ru/v4/posting/fbs/list",
             headers=headers, json=payload, timeout=30,
         )
         if r.status_code != 200:

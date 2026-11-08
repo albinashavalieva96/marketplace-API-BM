@@ -5,6 +5,7 @@ from datetime import datetime, timedelta, timezone
 
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from common.sheets import write_ozon_returns_sheet
+from common.ozon_fbs import v4_fbs_post
 
 SPREADSHEET_ID = "1f5I82g5Nmy3AMn9s0AWta-Hc0HoHSAi9BWlSomzoppM"
 SHEET_NAME = "API - Ozon BM - Возвраты и отмены"
@@ -79,8 +80,8 @@ def fetch_cancelled(client_id, api_key):
     # FBS отмены
     offset = 0
     while True:
-        r = requests.post(
-            "https://api-seller.ozon.ru/v3/posting/fbs/list",
+        r = v4_fbs_post(
+            "https://api-seller.ozon.ru/v4/posting/fbs/list",
             headers=headers,
             json={
                 "dir": "DESC",

@@ -6,6 +6,7 @@ from collections import defaultdict
 
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from common.sheets import get_sheets_client
+from common.ozon_fbs import v4_fbs_post
 
 SPREADSHEET_ID = "1f5I82g5Nmy3AMn9s0AWta-Hc0HoHSAi9BWlSomzoppM"
 SHEET_NAME = "API - Ozon BM - В пути"
@@ -42,8 +43,8 @@ def fetch_fbs_active(client_id, api_key):
     for status in ACTIVE_STATUSES:
         offset = 0
         while True:
-            r = requests.post(
-                "https://api-seller.ozon.ru/v3/posting/fbs/list",
+            r = v4_fbs_post(
+                "https://api-seller.ozon.ru/v4/posting/fbs/list",
                 headers=_headers(client_id, api_key),
                 json={
                     "dir": "DESC",
