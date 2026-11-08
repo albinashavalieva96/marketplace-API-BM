@@ -1,0 +1,39 @@
+name: Поддержание активности (чтобы GitHub не выключал задания)
+
+# GitHub выключает задания по расписанию после 60 дней без активности в репозитории.
+# Раз в месяц: пустой коммит и повторное включение всего, что выключено из-за неактивности.
+on:
+  schedule:
+    - cron: '0 6 1 * *'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  actions: write
+
+jobs:
+  keepalive:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Пустой коммит
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit --allow-empty -m "Поддержание активности репозитория"
+          git push
+
+      - name: Включить выключенные задания
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh api --paginate "repos/${{ github.repository }}/actions/workflows" \
+            --jq '.workflows[] | select(.state == "disabled_inactivity") | .id' |
+          while read -r id; do
+            echo "Включаю задание $id"
+            gh api -X PUT "repos/${{ github.repository }}/actions/workflows/$id/enable"
+          done
