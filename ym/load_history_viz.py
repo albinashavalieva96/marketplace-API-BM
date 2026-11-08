@@ -15,8 +15,8 @@ CAMPAIGN_IDS = {
 }
 
 # Период для исторической загрузки
-DATE_FROM = "2026-03-01"
-DATE_TO   = "2026-06-01"
+DATE_FROM = "2026-08-01"
+DATE_TO   = "2026-10-15"
 
 STATUS_MAP = {
     "CANCELLED": "Отменено",
