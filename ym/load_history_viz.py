@@ -107,7 +107,7 @@ def fetch_campaign_orders_range(api_token, campaign_id, date_from_str, date_to_s
                     region_name,
                     fmt_num(buyer_price),
                     calc_spp(price, buyer_price),
-                    supply_type,
+                    "",  # тип поставки проставляет fetch_campaign_orders
                 ])
 
         pages_count = pager.get("pagesCount", 1)
