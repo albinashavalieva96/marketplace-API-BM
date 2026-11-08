@@ -19,6 +19,14 @@ class _Resp:
         return self._payload
 
 
+def _shape(x):
+    if isinstance(x, dict):
+        return {k: _shape(v) for k, v in x.items()}
+    if isinstance(x, list):
+        return [_shape(x[0])] if x else []
+    return type(x).__name__
+
+
 def _load(url, headers, body, timeout):
     postings, seen, cursor = [], set(), ""
     for _ in range(500):
@@ -32,6 +40,8 @@ def _load(url, headers, body, timeout):
         data = r.json()
         result = data.get("result", data)
         page = result if isinstance(result, list) else result.get("postings", [])
+        if page and not postings:
+            print("СТРУКТУРА v4:", _json.dumps({k: _shape(page[0].get(k)) for k in ("products", "financial_data")}, ensure_ascii=False))
         for p in page:
             number = p.get("posting_number", "")
             if number not in seen:
