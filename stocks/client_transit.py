@@ -22,6 +22,8 @@ HEADER = ["Кабинет", "Направление", "Артикул", "Кол-
 TO_CLIENT, FROM_CLIENT = "К клиенту", "От клиента"
 MSK = timezone(timedelta(hours=3))
 OZON_DONE = {"ReceivedBySeller", "Cancelled", "CancelledBySeller"}
+OZON_MOVING = re.compile("Едет|Ожидает отправки|В пункте выдачи", re.I)   # остальное уже на складе, списано или потеряно
+YM_MOVING = {"CREATED", "PICKED", "IN_TRANSIT", "READY_FOR_PICKUP"}
 YM_CAMPAIGNS = {"ЯМ Виз": ("YM_VIZ_API_TOKEN", [22110675, 56291750]), "ЯМ Бар": ("YM_BAR_API_TOKEN", [147572980])}
 
 
@@ -106,7 +108,7 @@ def ozon_rows(client_id, api_key, cabinet):
         for ret in returns:
             product = ret.get("product") or {}
             status = (ret.get("visual") or {}).get("status") or {}
-            if status.get("sys_name", "") in OZON_DONE:
+            if status.get("sys_name", "") in OZON_DONE or not OZON_MOVING.search(status.get("display_name", "")):
                 continue
             qty = num(product.get("quantity")) or 1
             price = num((product.get("price") or {}).get("price"))
@@ -133,8 +135,6 @@ def ym_rows(token, campaigns, cabinet, prices):
     head = {"Api-Key": token}
     since = (datetime.now(MSK) - timedelta(days=90)).strftime("%Y-%m-%d")
     rows, counts, shown = [], defaultdict(int), False
-    done_ship = ("RECEIVED", "RECEIVED_ON_FULFILLMENT", "DELIVERED", "UTILIZED", "READY_FOR_PICKUP", "CANCELLED")
-    done_refund = ("REFUND_REJECTED", "CANCELLED", "DECISION_MADE_REJECT")
     for campaign in campaigns:
         page_token = None
         for _ in range(200):
@@ -152,12 +152,15 @@ def ym_rows(token, campaigns, cabinet, prices):
             for ret in returns:
                 ship, refund = ret.get("shipmentStatus", ""), ret.get("refundStatus", "")
                 counts[f"{ship}/{refund}"] += 1
-                if ship in done_ship or refund in done_refund:
+                if ship not in YM_MOVING:
                     continue
-                for item in ret.get("items", []):
+                items = ret.get("items", [])
+                total_qty = sum(num(i.get("count")) or 1 for i in items) or 1
+                unit = num((ret.get("amount") or {}).get("value")) / total_qty
+                for item in items:
                     article, qty = item.get("shopSku", ""), num(item.get("count")) or 1
-                    price = prices.get((str(ret.get("orderId", "")), article), 0)
-                    rows.append([cabinet, FROM_CLIENT, article, qty, price, round(qty * price, 2), f"{ship}/{refund}"])
+                    price = unit or prices.get((str(ret.get("orderId", "")), article), 0)
+                    rows.append([cabinet, FROM_CLIENT, article, qty, round(price, 2), round(qty * price, 2), ship])
             page_token = (result.get("paging") or {}).get("nextPageToken")
             if not page_token:
                 break
