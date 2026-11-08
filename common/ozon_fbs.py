@@ -19,12 +19,20 @@ class _Resp:
         return self._payload
 
 
-def _shape(x):
-    if isinstance(x, dict):
-        return {k: _shape(v) for k, v in x.items()}
-    if isinstance(x, list):
-        return [_shape(x[0])] if x else []
-    return type(x).__name__
+def _plain(x):
+    """В v4 цены приходят объектом {amount, currency}; скрипты ждут число."""
+    return x.get("amount", "") if isinstance(x, dict) else x
+
+
+def _normalize(p):
+    for item in p.get("products") or []:
+        if "price" in item:
+            item["price"] = _plain(item["price"])
+    for item in (p.get("financial_data") or {}).get("products") or []:
+        for k in ("price", "customer_price"):
+            if k in item:
+                item[k] = _plain(item[k])
+    return p
 
 
 def _load(url, headers, body, timeout):
@@ -40,13 +48,11 @@ def _load(url, headers, body, timeout):
         data = r.json()
         result = data.get("result", data)
         page = result if isinstance(result, list) else result.get("postings", [])
-        if page and not postings:
-            print("СТРУКТУРА v4:", _json.dumps({k: _shape(page[0].get(k)) for k in ("products", "financial_data")}, ensure_ascii=False))
         for p in page:
             number = p.get("posting_number", "")
             if number not in seen:
                 seen.add(number)
-                postings.append(p)
+                postings.append(_normalize(p))
         meta = result if isinstance(result, dict) else data
         cursor = meta.get("cursor") or data.get("cursor") or ""
         if not page or not cursor or meta.get("has_next", data.get("has_next")) is False:
